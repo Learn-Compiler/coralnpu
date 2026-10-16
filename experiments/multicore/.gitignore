@@ -1,0 +1,5 @@
+# Generated tools, firmware, simulation logs and Python caches.
+/tools/.tools/
+/tools/die/logs/
+/tools/multicore/logs/
+__pycache__/

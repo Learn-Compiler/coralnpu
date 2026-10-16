@@ -1,0 +1,105 @@
+load("//rules:chisel.bzl", "chisel_library", "chisel_cc_library")
+load("//hdl/chisel/src/coralnpu:flags.bzl", "CORE_MINI_AXI_VOPTS", "RVV_CORE_MINI_AXI_VOPTS")
+load("@rules_cc//cc:defs.bzl", "cc_binary")
+load("//rules:verilog.bzl", "verilog_library")
+
+package(default_visibility = ["//visibility:public"])
+
+chisel_library(
+    name = "cluster",
+    srcs = ["Cluster.scala"],
+    deps = [
+        "//hdl/chisel/src/coralnpu:coralnpu",
+        "//hdl/chisel/src/coralnpu:coralnpu_base",
+        "//hdl/chisel/src/coralnpu:coralnpu_scalar",
+        "//hdl/chisel/src/bus:bus",
+    ],
+)
+
+chisel_cc_library(
+    name = "dual_scalar",
+    chisel_lib = ":cluster",
+    emit_class = "mydie.cluster.EmitCluster",
+    module_name = "DualCoral",
+    vopts = CORE_MINI_AXI_VOPTS,
+)
+
+chisel_cc_library(
+    name = "dual_rvv",
+    chisel_lib = ":cluster",
+    emit_class = "mydie.cluster.EmitCluster",
+    module_name = "DualCoralRvv",
+    gen_flags = ["--rvv"],
+    vopts = RVV_CORE_MINI_AXI_VOPTS,
+)
+
+cc_binary(
+    name = "smoke_scalar",
+    srcs = ["smoke.cc", "firmware.h", "runtime.h", "device/kernel_abi.h"],
+    deps = [":dual_scalar_cc", "//hdl/verilog:sram_backdoor"],
+)
+
+cc_binary(
+    name = "smoke_rvv",
+    srcs = ["smoke.cc", "firmware.h", "runtime.h", "device/kernel_abi.h"],
+    defines = ["CLUSTER_RVV"],
+    deps = [":dual_rvv_cc", "//hdl/verilog:sram_backdoor"],
+)
+
+chisel_cc_library(
+    name = "quad_scalar",
+    chisel_lib = ":cluster",
+    emit_class = "mydie.cluster.EmitCluster",
+    module_name = "QuadCoral",
+    gen_flags = ["--cores=4"],
+    vopts = CORE_MINI_AXI_VOPTS,
+)
+
+chisel_cc_library(
+    name = "quad_rvv",
+    chisel_lib = ":cluster",
+    emit_class = "mydie.cluster.EmitCluster",
+    module_name = "QuadCoralRvv",
+    gen_flags = ["--cores=4", "--rvv"],
+    vopts = RVV_CORE_MINI_AXI_VOPTS,
+)
+
+cc_binary(
+    name = "smoke_quad_scalar",
+    srcs = ["smoke.cc", "firmware.h", "runtime.h", "device/kernel_abi.h"],
+    defines = ["CLUSTER_QUAD"],
+    deps = [":quad_scalar_cc", "//hdl/verilog:sram_backdoor"],
+)
+
+cc_binary(
+    name = "smoke_quad_rvv",
+    srcs = ["smoke.cc", "firmware.h", "runtime.h", "device/kernel_abi.h"],
+    defines = ["CLUSTER_QUAD", "CLUSTER_RVV"],
+    deps = [":quad_rvv_cc", "//hdl/verilog:sram_backdoor"],
+)
+
+chisel_library(
+    name = "die",
+    srcs = ["die/Die.scala"],
+    deps = [":cluster", "//hdl/chisel/src/bus:bus"],
+)
+
+verilog_library(
+    name = "picorv32_rtl",
+    srcs = ["die/vendor/picorv32/picorv32.v"],
+)
+
+chisel_cc_library(
+    name = "single_die",
+    chisel_lib = ":die",
+    emit_class = "mydie.cluster.EmitDie",
+    module_name = "CoralDie",
+    verilog_deps = [":picorv32_rtl"],
+    vopts = RVV_CORE_MINI_AXI_VOPTS + ["-Wno-PINCONNECTEMPTY"],
+)
+
+cc_binary(
+    name = "smoke_die",
+    srcs = ["die/smoke_die.cc", "die/complex_check.h", "device/complex_abi.h"],
+    deps = [":single_die_cc", "//hdl/verilog:sram_backdoor"],
+)
