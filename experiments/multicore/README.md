@@ -6,6 +6,20 @@ Coral 当前为 VLEN=128 bit，设备代码使用 e32,m1 的整数 RVV 指令。
 
 这是功能 RTL 原型。控制 CPU 是轻量 RV32IM 核，尚无完整模型推理、DMA/HBM、缓存一致性、3D 堆叠、多卡或物理设计签核。
 
+## 建模分支的统一入口
+
+专用分支为 `feat/ncoral-model`，基于 `feat/ncoral` 的四核 RVV 原型。先阅读 [完整编译与运行说明](docs/build_and_run.md) 和 [架构、已完成范围与后续任务](docs/model_status.md)。
+
+```bash
+python3 experiments/multicore/tools/ncoral.py doctor
+python3 experiments/multicore/tools/ncoral.py build --jobs 2
+python3 experiments/multicore/tools/ncoral.py run
+python3 experiments/multicore/tools/ncoral.py demo
+python3 experiments/multicore/tools/ncoral.py test --jobs 3
+```
+
+`build-sim` 可只构建 RTL 仿真器，`build-code` 可只编译 Coral kernel 和控制固件。统一入口的 `run/demo/test` 复用构建产物，修改后先重建对应部分。代码编译会保留 kernel LLVM IR、汇编、ELF/bin、链接 map 和三套程序的反汇编；报告记录完整编译命令。下面的原始脚本入口继续保留。
+
 ## 运行
 
 在仓库根目录执行，需要 Python 3、GCC/G++、Clang/LLD 17、llvm-objcopy/llvm-objdump、zlib 开发包和 LZ4 运行库。脚本使用校验过的 Bazel 下载及上游 Chisel/Verilator 依赖，首次构建需要网络与足够内存。

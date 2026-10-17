@@ -48,6 +48,12 @@ corresponding test READMEs:
 
 ## Quick Start
 
+For the local **one RISC-V controller + four Coral cores** learning model on
+`feat/ncoral-model`, see [the model guide](experiments/multicore/README.md),
+[build and run instructions](experiments/multicore/docs/build_and_run.md), and
+[implementation status](experiments/multicore/docs/model_status.md).
+It has its own pinned build bootstrap and is separate from the upstream examples below.
+
 ```bash
 # Ensure that test suite passes
 bazel run //tests/cocotb:core_mini_axi_sim_cocotb

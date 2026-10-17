@@ -1,0 +1,360 @@
+{
+  "status": "PASS",
+  "recorded_utc": "2026-10-17T17:56:15.519491+00:00",
+  "branch": "feat/ncoral-model",
+  "base_commit": "ac808307",
+  "simulator_build": {
+    "status": "PASS",
+    "started": "2026-10-17T17:52:29.253420+00:00",
+    "finished": "2026-10-17T17:52:42.788233+00:00",
+    "cache_reused": true,
+    "jobs": 2,
+    "timeout_seconds": 1800,
+    "command": "NCORAL_WORK_DIR=<existing-artifact-root> python3 experiments/multicore/tools/ncoral.py build-sim --jobs 2 --timeout 1800"
+  },
+  "combined_build": {
+    "status": "PASS",
+    "command": "NCORAL_WORK_DIR=<existing-artifact-root> python3 experiments/multicore/tools/ncoral.py build --jobs 2 --build-timeout 1800"
+  },
+  "doctor": [
+    {
+      "name": "host",
+      "passed": true,
+      "detail": "Linux x86_64; pinned Bazel bootstrap requires Linux x86_64"
+    },
+    {
+      "name": "python",
+      "passed": true,
+      "detail": "3.12.3"
+    },
+    {
+      "name": "gcc",
+      "passed": true,
+      "detail": "/usr/bin/gcc"
+    },
+    {
+      "name": "g++",
+      "passed": true,
+      "detail": "/usr/bin/g++"
+    },
+    {
+      "name": "make",
+      "passed": true,
+      "detail": "/usr/bin/make"
+    },
+    {
+      "name": "clang",
+      "passed": true,
+      "detail": "/usr/bin/clang-17"
+    },
+    {
+      "name": "lld",
+      "passed": true,
+      "detail": "/usr/bin/ld.lld-17"
+    },
+    {
+      "name": "objcopy",
+      "passed": true,
+      "detail": "/usr/bin/llvm-objcopy-17"
+    },
+    {
+      "name": "objdump",
+      "passed": true,
+      "detail": "/usr/bin/llvm-objdump-17"
+    },
+    {
+      "name": "zlib",
+      "passed": true,
+      "detail": "system zlib header and shared library (Debian/Ubuntu: zlib1g-dev)"
+    },
+    {
+      "name": "lz4",
+      "passed": true,
+      "detail": "/lib/x86_64-linux-gnu/liblz4.so.1"
+    },
+    {
+      "name": "sources",
+      "passed": true,
+      "detail": "/home/shaokai/Desktop/work/coral/coralnpu"
+    }
+  ],
+  "compiler": "Ubuntu clang version 17.0.6 (9ubuntu1)\nTarget: x86_64-pc-linux-gnu\nThread model: posix\nInstalledDir: /usr/bin",
+  "firmware": {
+    "controller_isa": "rv32im",
+    "coral_isa": {
+      "add": "rv32im_zicsr_zve32x_zvl128b",
+      "complex": "rv32im_zicsr_zve32x_zvl128b"
+    },
+    "abi": "ilp32",
+    "build_script_sha256": "4df3ce442c065b66286b34da92d5e065cfe5c39387c47fc4d2bd2a822ff52771",
+    "outputs_sha256": {
+      "coral.elf": "4b0380dc4456cbba27ef411fe4b62987ecf5c8fe4ea06396ed4445a5e2973e77",
+      "coral.bin": "8bc44ced961bde7ff48a741d3a720af1c44e133c487f2fe249e2298b3e3dafac",
+      "complex.elf": "78a8eaa3bae1c947cd31e94218fca18dd8fe147346a5475cec772a2e03ec09a6",
+      "complex.bin": "72a69b371abbb00f85fec19e5f09ffb86b53e507841f299ed7a6d0674ff222b6",
+      "controller.elf": "265f1d7726a698df65898c94e34e917ac3dfd91008ee616dea20464d40a5b0d5",
+      "controller.bin": "b8266e01cf4485077501dd99a619859c683c17ca9a4483b2db7e9f30d974ff52"
+    },
+    "rvv_assembly_evidence": {
+      "coral": {
+        "vle32.v": true,
+        "vse32.v": true,
+        "vset": true,
+        "vadd.vv": true
+      },
+      "complex": {
+        "vle32.v": true,
+        "vlse32.v": true,
+        "vse32.v": true,
+        "vmacc.vx": true,
+        "vmadd.vx": true,
+        "vmax.vx": true,
+        "vset": true
+      }
+    }
+  },
+  "simulator_sha256": "194bfbe9bb95992e0dc1502109a79609445342efc81520f1da7a1c7dac94cada",
+  "dependent_add": {
+    "result": "PASS",
+    "control_cpu": "PicoRV32 RV32IM RTL",
+    "coral_cores": 4,
+    "compute_backend": "RVV",
+    "rtl_shared_sram": true,
+    "cpu_runs_runtime": true,
+    "testbench_dispatch": false,
+    "elements": 37,
+    "operators": 2,
+    "launches": 8,
+    "completion_mask": 15,
+    "checksum": 11507,
+    "cpu_cycles": 28000,
+    "stall_period": 3,
+    "decode_errors": 0,
+    "shared_read_beats": 187,
+    "shared_write_beats": 200
+  },
+  "complex_demo": {
+    "outputs_identical": true,
+    "checked_elements": [
+      84,
+      224
+    ],
+    "simulations": [
+      {
+        "result": "PASS",
+        "control_cpu": "PicoRV32 RV32IM RTL",
+        "coral_cores": 4,
+        "compute_backend": "RVV",
+        "vlen_bits": 128,
+        "rvv_mac_dispatched": [
+          288,
+          216,
+          576,
+          432
+        ],
+        "rtl_shared_sram": true,
+        "cpu_runs_runtime": true,
+        "testbench_dispatch": false,
+        "scenario": "serial",
+        "rows": 7,
+        "operators": 2,
+        "launches": 4,
+        "completion_mask": 15,
+        "checksum": 4436,
+        "gemm_checked": 84,
+        "conv_checked": 224,
+        "overlap_observed": false,
+        "gemm_rows_during_overlap": 0,
+        "conv_rows_during_overlap": 0,
+        "trace_events": 26,
+        "stall_period": 3
+      },
+      {
+        "result": "PASS",
+        "control_cpu": "PicoRV32 RV32IM RTL",
+        "coral_cores": 4,
+        "compute_backend": "RVV",
+        "vlen_bits": 128,
+        "rvv_mac_dispatched": [
+          288,
+          216,
+          576,
+          432
+        ],
+        "rtl_shared_sram": true,
+        "cpu_runs_runtime": true,
+        "testbench_dispatch": false,
+        "scenario": "parallel",
+        "rows": 7,
+        "operators": 2,
+        "launches": 4,
+        "completion_mask": 15,
+        "checksum": 4436,
+        "gemm_checked": 84,
+        "conv_checked": 224,
+        "overlap_observed": true,
+        "gemm_rows_during_overlap": 7,
+        "conv_rows_during_overlap": 4,
+        "trace_events": 26,
+        "stall_period": 3
+      }
+    ]
+  },
+  "regression": {
+    "started": "2026-10-17T17:51:48.290297+00:00",
+    "finished": "2026-10-17T17:55:14.420790+00:00",
+    "jobs": 3,
+    "passed": 19,
+    "cases": [
+      {
+        "name": "one_element",
+        "passed": true,
+        "exit_code": 0,
+        "expected_error": null
+      },
+      {
+        "name": "empty_shards",
+        "passed": true,
+        "exit_code": 0,
+        "expected_error": null
+      },
+      {
+        "name": "one_per_core",
+        "passed": true,
+        "exit_code": 0,
+        "expected_error": null
+      },
+      {
+        "name": "unequal_shards",
+        "passed": true,
+        "exit_code": 0,
+        "expected_error": null
+      },
+      {
+        "name": "backpressure",
+        "passed": true,
+        "exit_code": 0,
+        "expected_error": null
+      },
+      {
+        "name": "two_operators",
+        "passed": true,
+        "exit_code": 0,
+        "expected_error": null
+      },
+      {
+        "name": "two_operators_backpressure",
+        "passed": true,
+        "exit_code": 0,
+        "expected_error": null
+      },
+      {
+        "name": "decode_error_recovery",
+        "passed": true,
+        "exit_code": 0,
+        "expected_error": null
+      },
+      {
+        "name": "bad_configuration",
+        "passed": true,
+        "exit_code": 1,
+        "expected_error": "controller reported failure code=0xbad00001"
+      },
+      {
+        "name": "coral_fault",
+        "passed": true,
+        "exit_code": 1,
+        "expected_error": "controller reported failure code=0xbad00002 coral_fault=0x0 trap_mask=0x1"
+      },
+      {
+        "name": "runtime_wait_timeout",
+        "passed": true,
+        "exit_code": 1,
+        "expected_error": "controller reported failure code=0xbad00004"
+      },
+      {
+        "name": "cycle_deadline",
+        "passed": true,
+        "exit_code": 1,
+        "expected_error": "simulated cycle deadline exceeded"
+      },
+      {
+        "name": "memory_not_ready",
+        "passed": true,
+        "exit_code": 1,
+        "expected_error": "simulated cycle deadline exceeded"
+      },
+      {
+        "name": "complex_serial_empty_shard",
+        "passed": true,
+        "exit_code": 0,
+        "expected_error": null
+      },
+      {
+        "name": "complex_parallel_empty_shard",
+        "passed": true,
+        "exit_code": 0,
+        "expected_error": null
+      },
+      {
+        "name": "complex_serial_unequal_rows",
+        "passed": true,
+        "exit_code": 0,
+        "expected_error": null
+      },
+      {
+        "name": "complex_parallel_unequal_rows",
+        "passed": true,
+        "exit_code": 0,
+        "expected_error": null
+      },
+      {
+        "name": "complex_serial_full_backpressure",
+        "passed": true,
+        "exit_code": 0,
+        "expected_error": null
+      },
+      {
+        "name": "complex_parallel_full_backpressure",
+        "passed": true,
+        "exit_code": 0,
+        "expected_error": null
+      }
+    ]
+  },
+  "source_sha256": {
+    "experiments/multicore/Cluster.scala": "65de92a1dabe3309b4f2db63119248b17dd8f9afadf09e66d73f8fa95ed88b63",
+    "experiments/multicore/device/add.c": "2125c61e31252cc1a2cd724610c43d3f26007dba9ed990ae94b1556d15edb214",
+    "experiments/multicore/device/complex.c": "8b740f879341d1eb4e41778a81a2d27cff19184db332dccc57b7fb74c28aca5b",
+    "experiments/multicore/device/complex_abi.h": "75bbad31c51f6af533f3b335a8856853b7f961573914924e06b5cf28031ec9a1",
+    "experiments/multicore/device/kernel_abi.h": "128f63fbe703a3dc801dec71f3c30acca109a57ff6183da032a79da6cbcd6e1b",
+    "experiments/multicore/device/link.ld": "bfe136db5c9cece84705b9e767eaa30641742be62223c01d8bd31e5fbb0a6a09",
+    "experiments/multicore/device/start.S": "5c2d09572886cc8e4ee61383f590c3fff6978bde962d5da58f4ad4189b246b5f",
+    "experiments/multicore/die/Die.scala": "dca18336bf2621e48fd4ca13d185481fe6dcc29be18885b813609c8798465403",
+    "experiments/multicore/die/complex_check.h": "39bbd5e3e35bdd364748afa4612f493b8d5c3a614461b381de746979ca741c48",
+    "experiments/multicore/die/firmware/complex_demo.c": "e912e00a11893a25d5974e91087ad212c62a939e69747f1916a95c12570348fb",
+    "experiments/multicore/die/firmware/link.ld": "d5cc461ac64380e131c2f122c79e280cd2cf4652591ca3e95ea66fcfe076a018",
+    "experiments/multicore/die/firmware/main.c": "19f5f92f834df0ed0f87dc75ae77bea1ef503d839b0756967e9380349c77915a",
+    "experiments/multicore/die/firmware/platform.h": "bd8157446432680843d1fd841a30a17d521d968b58dd87b41109c17bbd0ab59f",
+    "experiments/multicore/die/firmware/runtime.c": "bcc6a32cd4a0962630f6d152bdcb592cfa26e85107973c90b9bcb93f7a3b6225",
+    "experiments/multicore/die/firmware/start.S": "ab20a90d780c1a0a13e402bc4c9712b8b137ed05fe3158b99825b47e2b1a7667",
+    "experiments/multicore/die/smoke_die.cc": "e7553187449ab32f7ab6aa63398b7b95d2ecee0802076913e0215d36edcb33e1",
+    "experiments/multicore/firmware.h": "69a2bca222e66ebfc857cfce08d3363d186f28c1a286e385ff1aa59d312ea1b3",
+    "experiments/multicore/runtime.h": "ab6fbe4fb3aa9ce461e706b7515210e78199f2525943eabb96998a20ee9b1139",
+    "experiments/multicore/smoke.cc": "dc05a4514fddaee93136a4cf9b57b45c6830d9cab0d10e851fc500b1dddcc43e",
+    "experiments/multicore/tools/die/build_firmware.py": "4df3ce442c065b66286b34da92d5e065cfe5c39387c47fc4d2bd2a822ff52771",
+    "experiments/multicore/tools/die/build_sim.py": "c354fdfb99ba11376cf5a07f4c17845b2c64631f0c44c780da892ec73cb53f13",
+    "experiments/multicore/tools/die/check.py": "691818f1ed7dd75add2a025445dd042d5361e609dd9a7f5578bcbbcf36714f93",
+    "experiments/multicore/tools/die/demo_complex.py": "ede5cb22365442d83c7a4bd69c00c53bc5438eaa01ae78934524356da9056089",
+    "experiments/multicore/tools/die/run.py": "e7d8283ba9bfcc9227f132e25cfc58290722877cdc47b743f4cdf541e43120d5",
+    "experiments/multicore/tools/multicore/build_kernel.py": "4b18610acb95bd8e52cd3eefc97bc1246ab2f8cc2e9e4da33acb79dd7364e3ea",
+    "experiments/multicore/tools/multicore/check.py": "232e5f1e25f9e7ddbb1a3d9420b0c04c0adeb1e250314f71f6f6d98863b01304",
+    "experiments/multicore/tools/multicore/run.py": "43724117f06bb4b0288f1c961bb10b2fa1810515c896c6a21f25025a8d1dbe93",
+    "experiments/multicore/tools/ncoral.py": "b5f822a81bfff385b69cfca9476b464a766cd63f6d0c701adecff49b4f0cf681",
+    "experiments/multicore/tools/ncoral_paths.py": "fcf2bf6b0d8c28e2c7c9aad599f1473b10da753750eb3914451c60d5638c6d94"
+  },
+  "limits": [
+    "RTL build reused existing cache; no clean-host bootstrap tested",
+    "RVV only; no Zvt/private instruction toolchain or full language model"
+  ]
+}

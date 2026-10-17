@@ -22,7 +22,15 @@ def validate_rvv_firmware():
     if (report.get('status')!='PASS' or report.get('compute_backend')!='RVV' or
             set(evidence)!=set(('coral','complex')) or
             any(not checks or not all(checks.values()) for checks in evidence.values())):
-        raise RuntimeError('missing verified RVV firmware; run python3 die/build_firmware.py')
+        raise RuntimeError('missing verified RVV firmware; run python3 experiments/multicore/tools/ncoral.py build-code')
+    if report.get('build_script_sha256') != hashlib.sha256(Path(__file__).read_bytes()).hexdigest():
+        raise RuntimeError('firmware build recipe changed; run ncoral.py build-code')
+    source = UPSTREAM / 'experiments/multicore'
+    current_sources = {str(path.relative_to(UPSTREAM)): hashlib.sha256(path.read_bytes()).hexdigest()
+                       for folder in (source/'device', source/'die/firmware')
+                       for path in folder.iterdir() if path.is_file()}
+    if report.get('source_sha256') != current_sources:
+        raise RuntimeError('firmware sources changed; run ncoral.py build-code before reusing artifacts')
     for name,digest in report['outputs_sha256'].items():
         if hashlib.sha256((output/name).read_bytes()).hexdigest()!=digest:
             raise RuntimeError('RVV firmware artifact checksum mismatch: '+name)
@@ -59,8 +67,13 @@ def build(timeout=30, clang_path=None, lld_path=None):
         link = ['-nostdlib', '-fuse-ld=' + lld, '-Wl,--no-relax,--build-id=none']
         phase('compiler', [clang, '--version'])
         for name, kernel, isa in [('coral','add.c',vector_isa),('complex','complex.c',vector_isa)]:
+            phase(name+'_ir', [clang, *base, '-march='+isa, '-S', '-emit-llvm',
+                               str(device/kernel), '-o', str(output/(name+'.ll'))])
+            phase(name+'_asm', [clang, *base, '-march='+isa, '-S',
+                                str(device/kernel), '-o', str(output/(name+'.s'))])
             phase(name+'_link', [clang, *base, '-march='+isa, *link,
                                 '-Wl,-T,' + str(device / 'link.ld'),
+                                '-Wl,-Map=' + str(output / (name+'.map')),
                                 str(device / 'start.S'), str(device / kernel),
                                 '-o', str(output / (name+'.elf'))])
             phase(name+'_disassembly',[objdump,'-d','--mattr=+m,+zve32x,+zvl128b',
@@ -94,6 +107,7 @@ def build(timeout=30, clang_path=None, lld_path=None):
                                  str(control / 'start.S'), str(control / 'runtime.c'), str(control / 'main.c'),
                                  str(control / 'complex_demo.c'),
                                  '-o', str(output / 'controller.elf')])
+        phase('controller_disassembly', [objdump, '-d', str(output/'controller.elf')])
         phase('controller_binary', [objcopy, '-O', 'binary', str(output / 'controller.elf'), str(binary)])
         if not binary.stat().st_size or binary.stat().st_size > 49152:
             raise RuntimeError('controller firmware exceeds its 48KiB linked memory region')
@@ -103,6 +117,7 @@ def build(timeout=30, clang_path=None, lld_path=None):
                                     for path in inputs if path.is_file()}
         report['outputs_sha256'] = {name: hashlib.sha256((output / name).read_bytes()).hexdigest()
                                     for name in ('coral.elf', 'coral.bin', 'complex.elf', 'complex.bin', 'controller.elf', 'controller.bin')}
+        report['build_script_sha256'] = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
         report.update(status='PASS', controller_binary=str(binary))
     except Exception as error:
         binary.unlink(missing_ok=True)
