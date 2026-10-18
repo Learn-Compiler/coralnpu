@@ -5,9 +5,9 @@ void control_main(void) {
   const volatile BootConfig *cfg=(const volatile BootConfig *)(uintptr_t)BOOT_CONFIG;
   const unsigned n=cfg->elements,rounds=cfg->rounds,mode=cfg->mode;
   if(cfg->scenario) {
-    if(read32(SYSTEM_BASE+SYS_ID)!=0x434f5241 || cfg->scenario>2 ||
+    if(read32(SYSTEM_BASE+SYS_ID)!=0x434f5241 || cfg->scenario>4 ||
        cfg->rows<1 || cfg->rows>8 || mode || cfg->wait_cycles==0)die_finish(DIE_BAD_CONFIG);
-    complex_main(cfg->scenario==2,cfg->rows,cfg->wait_cycles);
+    complex_main(cfg->scenario,cfg->rows,cfg->wait_cycles);
   }
   if(read32(SYSTEM_BASE+SYS_ID)!=0x434f5241 || n<1 || n>128 ||
      rounds<1 || rounds>2 || mode>3 || cfg->wait_cycles==0)die_finish(DIE_BAD_CONFIG);
@@ -36,7 +36,7 @@ void control_main(void) {
     write32(SYSTEM_BASE+SYS_PHASE,3+op*2);
     const uint32_t a=SHARED_BASE+(op?0x800:0);
     const uint32_t c=SHARED_BASE+(op?0x1000:0x800);
-    coral_launch_add(a,SHARED_BASE+0x400,c,n);
+    coral_launch_add(a,SHARED_BASE+0x400,c,n,op);
     const uint32_t error=coral_wait(cfg->wait_cycles);
     if(error)die_finish(error);
     write32(SYSTEM_BASE+SYS_PHASE,4+op*2);

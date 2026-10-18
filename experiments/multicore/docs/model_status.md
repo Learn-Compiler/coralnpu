@@ -31,7 +31,7 @@ flowchart TD
 | 软件 runtime | 加载 kernel、参数下发、按行切分、核组启动、轮询等待、异常检测 | `die/firmware/runtime.c` |
 | 算子 | 四核向量加法；GEMM+bias+ReLU；3×3 卷积+bias+ReLU | `device/add.c`、`device/complex.c` |
 | 依赖与并行 | 两次加法依赖串行；GEMM/卷积固定核组的串行、并行演示 | `die/firmware/main.c`、`complex_demo.c` |
-| 可观察性 | 真正的设备 MMIO 打印、RTL 周期戳、每核 RVV MAC 派发计数 | `Die.scala`、`smoke_die.cc` |
+| 可观察性 | MMIO 日志、RTL 周期戳、RVV MAC 派发计数、mcycle/minstret 采样、交互时间线 | `Die.scala`、`device/profile.h`、`die/profile_check.h` |
 | 验证 | 独立 int64 参考、逐元素、保护字、输入不变、trap/fault、顺序/重叠和错误注入 | `die/complex_check.h`、`tools/die/check.py` |
 | 构建入口 | 环境检查、仿真器与软件分开构建、IR/汇编/ELF、统一运行和回归 | `tools/ncoral.py` |
 
@@ -57,9 +57,9 @@ flowchart TD
 
 ### P1：使 runtime 从固定演示发展为可编程调度
 
-现在没有通用命令队列、动态核分配、异步事件、DAG 调度、任务抢占或中断完成通知。GEMM 固定核 0/1、卷积固定核 2/3，提交计划写在 C 固件中，LLVM 不会自动把一个算子变成四核任务。
+现在没有通用命令队列、动态核分配、异步事件、DAG 调度、任务抢占或中断完成通知。双算子演示中 GEMM 固定核 0/1、卷积固定核 2/3；新增单算子入口可让 GEMM 或卷积使用全部四核。提交计划仍写在 C 固件中，LLVM 不会自动把一个算子变成四核任务。
 
-下一步先实现固定大小任务描述符：`kernel_id / core_mask / 输入输出地址 / 分片范围 / wait_event / signal_event / status`。在控制核上维护静态容量的队列和事件表；以已有 MMIO 启动和等待函数为底层，先不增加动态内存分配。验收包括四核共同跑单算子、两个独立算子 2+2 分组、前驱依赖、资源冲突、空分片以及任务失败不释放成功事件。
+下一步先实现固定大小任务描述符：`kernel_id / core_mask / 输入输出地址 / 分片范围 / wait_event / signal_event / status`。在控制核上维护静态容量的队列和事件表；以已有 MMIO 启动和等待函数为底层，先不增加动态内存分配。在已有四核单算子、双算子 2+2 分组、前驱依赖和空分片用例基础上，增加队列资源冲突和任务失败不释放成功事件的验证。
 
 ### P2：私有指令与 LLVM 学习路线
 

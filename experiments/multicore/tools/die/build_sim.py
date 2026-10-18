@@ -47,7 +47,8 @@ def main():
         report.update(status="PASS", simulator=str(binary),
                       simulator_sha256=hashlib.sha256(binary.read_bytes()).hexdigest())
         inputs = ["BUILD.bazel", "Cluster.scala", "die/Die.scala", "die/smoke_die.cc",
-                  "die/complex_check.h", "device/complex_abi.h", "die/vendor/picorv32/picorv32.v"]
+                  "die/complex_check.h", "die/profile_check.h", "device/complex_abi.h", "device/profile.h",
+                  "die/vendor/picorv32/picorv32.v"]
         report["integration_source_sha256"] = {
             name: hashlib.sha256((source / name).read_bytes()).hexdigest() for name in inputs}
         print("Simulator:", binary, flush=True)

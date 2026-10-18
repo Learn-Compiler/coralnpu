@@ -24,7 +24,7 @@ python3 experiments/multicore/tools/ncoral.py run
 # 两个复杂算子：串行、并行各运行一次，比较全部输出。
 python3 experiments/multicore/tools/ncoral.py demo
 
-# 19 项回归；jobs 是宿主测试进程数，不是 Coral 核数。
+# 23 项回归；jobs 是宿主测试进程数，不是 Coral 核数。
 python3 experiments/multicore/tools/ncoral.py test --jobs 3
 ```
 
@@ -78,7 +78,7 @@ add.c / complex.c
     → controller.elf → controller.bin
 ```
 
-共用主要参数是 `-O2 -ffreestanding -nostdlib -mabi=ilp32`，关闭链接松弛、小数据区和自动向量化。RVV 使用显式 `riscv_vector.h` intrinsic，因此仍生成向量指令。完整参数以固件 `report.json` 中的 `commands` 为准，脚本没有隐藏额外的交叉 GCC 工具链。
+共用主要参数是 `-O2 -ffreestanding -nostdlib -mabi=ilp32`，关闭链接松弛、小数据区和自动向量化。当前还定义 `NCORAL_PROFILE=1`，同步启用控制核与 kernel 的采样记录及参数扩展。RVV 使用显式 `riscv_vector.h` intrinsic，因此仍生成向量指令。完整参数以固件 `report.json` 中的 `commands` 为准，脚本没有隐藏额外的交叉 GCC 工具链。
 
 设备代码当前只支持不超过 8 KiB 的 ITCM 镜像；参数位于每核私有 DTCM 的 `0x10000`，栈顶 `0x18000`。设备启动代码没有通用 `.data` 装载和 `.bss` 清零流程，新增全局数据之前先完善 ELF 分段加载。控制固件链接区为 48 KiB，硬件启动 RAM 为 64 KiB，剩余空间用于栈及启动配置。
 
@@ -121,7 +121,7 @@ timeout --signal=TERM --kill-after=10s 420s \
 | `die/logs/firmware/` | 三套 ELF/bin、kernel IR/汇编、链接 map、反汇编、image.h、编译命令与哈希 |
 | `die/logs/report.json`、`run.log` | 普通场景结果 |
 | `die/logs/complex/rows7_stall3/` | 两种调度的日志、事件/输出 JSON、交叉检查报告 |
-| `die/logs/regression/report.json` | 19 项回归及每项日志位置 |
+| `die/logs/regression/report.json` | 23 项回归及每项日志、采样位置 |
 | `.tools/` | 固定 Bazel、下载和构建缓存 |
 
 这些生成文件不提交 Git。可以在执行所有命令前设置 `export NCORAL_WORK_DIR=/absolute/artifact-directory`，将缓存与日志统一移动到仓库之外。**同一次构建、代码编译和运行应保持相同环境变量。** 不设置时使用仓库内默认目录；旧的本机缓存目录可选 `/home/shaokai/Desktop/work/coral`，这不是源码要求的固定位置。
@@ -151,3 +151,5 @@ python3 experiments/multicore/tools/ncoral.py test --jobs 3
 找不到镜像：先执行 `build-code`；找不到仿真器：执行 `build-sim`。编译失败先看相应 `report.json` 的 `error` 和 `phases`，然后打开失败阶段日志。超时先分清构建、宿主仿真、芯片等待还是周期截止，不能只增加所有超时掩盖错误。
 
 系统的实际范围和后续任务见 [架构与待办](model_status.md)，历史 RVV 运行证据见 [RVV 验证](rvv_execution.md)。
+
+需要单独选择已编译算子、查看执行周期与退休指令数时，使用 [算子运行与性能报告](operator_profiling.md) 中的 `ncoral.py op` 入口。

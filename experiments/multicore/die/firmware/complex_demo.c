@@ -1,7 +1,8 @@
 #include "platform.h"
 #include "complex_image.h"
 
-void complex_main(unsigned parallel,unsigned rows,uint32_t timeout_cycles) {
+void complex_main(unsigned scenario,unsigned rows,uint32_t timeout_cycles) {
+  const unsigned only_op=scenario==3?OP_GEMM:scenario==4?OP_CONV:0;
   write32(SYSTEM_BASE+SYS_PHASE,10);
   coral_load(complex_image,COMPLEX_IMAGE_WORDS,COMPLEX_IMAGE_ENTRY);
   for(unsigned i=0;i<rows*GEMM_K;++i)
@@ -20,18 +21,21 @@ void complex_main(unsigned parallel,unsigned rows,uint32_t timeout_cycles) {
   write32(SHARED_BASE+GEMM_Y+4*rows*GEMM_N,0x5a5a5a5a);
   write32(SHARED_BASE+CONV_Y-4,0xa5a5a5a5);
   write32(SHARED_BASE+CONV_Y+4*rows*CONV_OW*CONV_CO,0x5a5a5a5a);
-  coral_prepare_complex(rows);
+  coral_prepare_complex(rows,only_op);
   write32(SYSTEM_BASE+SYS_PHASE,11);
-  coral_start_mask(0x3);
   uint32_t error;
-  if(!parallel && (error=coral_wait_mask(0x3,timeout_cycles)))die_finish(error);
-  write32(SYSTEM_BASE+SYS_PHASE,12);
-  coral_start_mask(0xc);
+  if(only_op)coral_start_mask(0xf);
+  else {
+    coral_start_mask(0x3);
+    if(scenario==1 && (error=coral_wait_mask(0x3,timeout_cycles)))die_finish(error);
+    write32(SYSTEM_BASE+SYS_PHASE,12);
+    coral_start_mask(0xc);
+  }
   if((error=coral_wait_mask(0xf,timeout_cycles)))die_finish(error);
   write32(SYSTEM_BASE+SYS_PHASE,13);
   uint32_t checksum=0;
-  for(unsigned i=0;i<rows*GEMM_N;++i)checksum+=read32(SHARED_BASE+GEMM_Y+4*i);
-  for(unsigned i=0;i<rows*CONV_OW*CONV_CO;++i)checksum+=read32(SHARED_BASE+CONV_Y+4*i);
+  if(only_op!=OP_CONV)for(unsigned i=0;i<rows*GEMM_N;++i)checksum+=read32(SHARED_BASE+GEMM_Y+4*i);
+  if(only_op!=OP_GEMM)for(unsigned i=0;i<rows*CONV_OW*CONV_CO;++i)checksum+=read32(SHARED_BASE+CONV_Y+4*i);
   write32(SYSTEM_BASE+SYS_CHECKSUM,checksum);
   die_finish(DIE_PASS);
 }

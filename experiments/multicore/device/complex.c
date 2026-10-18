@@ -1,4 +1,5 @@
 #include "complex_abi.h"
+#include "profile.h"
 #include <riscv_vector.h>
 
 static inline void fence(void) { __asm__ volatile("fence rw,rw" ::: "memory"); }
@@ -17,6 +18,7 @@ void kernel_entry(const ComplexArgs *args) {
   const int32_t *bias=(const int32_t *)(uintptr_t)args->bias;
   int32_t *y=(int32_t *)(uintptr_t)args->y;
   coral_log(args,TRACE_START,args->first_row);
+  const CoralCounterSample begin=coral_counter_sample();
   uint32_t vlenb;
   __asm__ volatile("csrr %0, vlenb" : "=r"(vlenb));
   const unsigned lanes=__riscv_vsetvl_e32m1(4);
@@ -66,6 +68,7 @@ void kernel_entry(const ComplexArgs *args) {
     }
     coral_log(args,TRACE_ROW,row);
   }
+  coral_profile_end(args->profile,args->core,args->op,0,begin);
   coral_log(args,TRACE_END,args->rows);
   fence();
   *(volatile uint32_t *)(uintptr_t)args->done=1;

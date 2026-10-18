@@ -10,6 +10,8 @@ Coral 当前为 VLEN=128 bit，设备代码使用 e32,m1 的整数 RVV 指令。
 
 专用分支为 `feat/ncoral-model`，基于 `feat/ncoral` 的四核 RVV 原型。先阅读 [完整编译与运行说明](docs/build_and_run.md) 和 [架构、已完成范围与后续任务](docs/model_status.md)。
 
+现已支持 [一条命令运行已编译算子与执行时间线](docs/operator_profiling.md)：`op list` 查看，`op run gemm --open` 执行并打开报告。报告展示四核 START/END 时间线、每核 `mcycle/minstret` 采样与退休指令数，单独 GEMM/卷积会使用四核分片。
+
 ```bash
 python3 experiments/multicore/tools/ncoral.py doctor
 python3 experiments/multicore/tools/ncoral.py build --jobs 2
@@ -35,7 +37,7 @@ python3 experiments/multicore/tools/die/demo_complex.py --skip-build --skip-firm
 python3 experiments/multicore/tools/die/run.py --skip-build --skip-firmware
 python3 experiments/multicore/tools/die/run.py --skip-build --skip-firmware --rounds 2
 
-# 19 项单 die 回归：先完成上述构建。
+# 23 项单 die 回归：先完成上述构建。
 python3 experiments/multicore/tools/die/check.py
 
 # 可选：同时运行三个独立仿真实例，每个实例仍是一颗四核 die。
@@ -82,7 +84,7 @@ kernel 的 `coral_log()` 向 `0x20003ff0` 执行真实 MMIO 写。RTL 在 AXI �
 - [die/firmware/runtime.c](die/firmware/runtime.c)：控制核上的加载、分片、核组启动与等待。
 - [die/firmware/complex_demo.c](die/firmware/complex_demo.c)：两个独立算子的提交计划。
 - [die/smoke_die.cc](die/smoke_die.cc)、[die/complex_check.h](die/complex_check.h)：独立只读检查、数值参考和执行证据验证。
-- [tools/die/](tools/die/)：固件构建、单 die 运行、复杂算子演示与 19 项回归。
+- [tools/die/](tools/die/)：固件构建、算子运行与性能报告、复杂算子演示及 23 项回归。
 - [tools/multicore/](tools/multicore/)：共享工具依赖及早期独立簇运行/验证入口。
 
 `smoke_scalar`、`smoke_rvv`、`smoke_quad_scalar`、`smoke_quad_rvv` 保留早期测试台 runtime 实验；当前真实控制 CPU 的主入口是 `smoke_die`。PicoRV32 固定源码、ISC 许可证与哈希保存在 [vendor 目录](die/vendor/picorv32/)，构建脚本检查来源完整性。原 Coral 执行核源码保持原样，实验通过参数和集成代码启用 RVV。

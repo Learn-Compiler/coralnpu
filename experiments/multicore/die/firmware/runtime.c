@@ -11,7 +11,7 @@ void coral_load(const uint32_t *image,unsigned words,uint32_t entry) {
   memory_fence();
 }
 
-void coral_launch_add(uint32_t a,uint32_t b,uint32_t c,unsigned count) {
+void coral_launch_add(uint32_t a,uint32_t b,uint32_t c,unsigned count,unsigned invocation) {
   const unsigned base=count/CORAL_COUNT,rest=count%CORAL_COUNT;
   for(unsigned core=0;core<CORAL_COUNT;++core) {
     // A completed WFI kernel is restarted through its control CSR for each op.
@@ -19,10 +19,12 @@ void coral_launch_add(uint32_t a,uint32_t b,uint32_t c,unsigned count) {
     const unsigned first=core*base+(core<rest?core:rest);
     const uint32_t done=SHARED_BASE+0xc00+4*core;
     write32(done,0);
+    const uint32_t profile=PROFILE_BASE+PROFILE_STRIDE*(invocation*CORAL_COUNT+core);
+    write32(profile,0);
     const ClusterArgs args={a+4*first,b+4*first,c+4*first,
-                           base+(core<rest),done};
-    const uint32_t fields[]={args.a,args.b,args.c,args.count,args.done};
-    for(unsigned field=0;field<5;++field)
+                           base+(core<rest),done,core,profile,invocation};
+    const uint32_t *fields=(const uint32_t *)&args;
+    for(unsigned field=0;field<sizeof(args)/4;++field)
       write32(coral_address(core,CLUSTER_ARGS_ADDRESS+4*field),fields[field]);
   }
   memory_fence();
@@ -40,14 +42,17 @@ void coral_start_mask(unsigned mask) {
   }
 }
 
-void coral_prepare_complex(unsigned rows) {
+void coral_prepare_complex(unsigned rows,unsigned only_op) {
   for(unsigned core=0;core<CORAL_COUNT;++core) {
-    const unsigned lane=core&1,conv=core>=2;
-    const unsigned first=lane*(rows/2)+(lane<(rows%2)?lane:rows%2);
+    const unsigned lanes=only_op?4:2,lane=only_op?core:(core&1);
+    const unsigned conv=only_op?only_op==OP_CONV:core>=2;
+    const unsigned first=lane*(rows/lanes)+(lane<(rows%lanes)?lane:rows%lanes);
     const uint32_t done=SHARED_BASE+COMPLEX_DONE+4*core;
-    const ComplexArgs args={conv?OP_CONV:OP_GEMM,core,first,rows/2+(lane<rows%2),
+    const uint32_t profile=PROFILE_BASE+PROFILE_STRIDE*core;
+    write32(profile,0);
+    const ComplexArgs args={conv?OP_CONV:OP_GEMM,core,first,rows/lanes+(lane<rows%lanes),
       SHARED_BASE+(conv?CONV_X:GEMM_A),SHARED_BASE+(conv?CONV_W:GEMM_B),
-      SHARED_BASE+(conv?CONV_BIAS:GEMM_BIAS),SHARED_BASE+(conv?CONV_Y:GEMM_Y),done};
+      SHARED_BASE+(conv?CONV_BIAS:GEMM_BIAS),SHARED_BASE+(conv?CONV_Y:GEMM_Y),done,profile};
     const uint32_t *fields=(const uint32_t *)&args;
     write32(done,0);
     for(unsigned field=0;field<sizeof(args)/4;++field)

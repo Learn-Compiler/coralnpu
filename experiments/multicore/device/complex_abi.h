@@ -23,6 +23,6 @@ enum { OP_GEMM=1, OP_CONV=2 };
 enum { TRACE_START=1, TRACE_ROW=2, TRACE_END=3, TRACE_RVV_CONFIG=4 };
 /* All pointers are 32-bit physical addresses; arguments live in private DTCM. */
 typedef struct {
-  uint32_t op,core,first_row,rows,a,b,bias,y,done;
+  uint32_t op,core,first_row,rows,a,b,bias,y,done,profile;
 } ComplexArgs;
 #endif

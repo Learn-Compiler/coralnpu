@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Coral 算子执行观察</title>
+<style>
+:root{color-scheme:light dark;--bg:#f5f7fa;--fg:#182333;--muted:#566579;--surface:#fff;--line:#dbe2eb;--gemm:#2563eb;--conv:#087f75;--add:#b65c10;--track:#e7ecf2}
+@media(prefers-color-scheme:dark){:root{--bg:#111820;--fg:#edf2f8;--muted:#acbbce;--surface:#1a2531;--line:#344558;--gemm:#75a5ff;--conv:#52d2ba;--add:#ffb36a;--track:#2c3947}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.6 system-ui,sans-serif}main{max-width:1080px;margin:36px auto;padding:0 24px}h1{font-size:clamp(23px,4vw,34px);line-height:1.3;margin:8px 0}h2{font-size:19px;margin:30px 0 12px}p{margin:8px 0}.muted{color:var(--muted)}.status{color:var(--conv);font-weight:700;font-size:13px;letter-spacing:.06em}.controls{display:flex;flex-wrap:wrap;gap:16px;align-items:end;margin:24px 0}label{display:grid;gap:5px;font-size:13px}select,input,button{font:inherit;color:inherit;background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:8px 10px}select{max-width:100%}input[type=number]{width:155px}button{cursor:pointer}button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--gemm);outline-offset:2px}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}.stat{padding:16px;background:var(--surface);border:1px solid var(--line);border-radius:8px}.value{font-size:clamp(22px,3vw,32px);font-weight:650;line-height:1.3;font-variant-numeric:tabular-nums;margin-top:4px}.caption{font-size:12px;color:var(--muted);margin-top:7px}.player{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin:14px 0}.player input{flex:1;min-width:120px;accent-color:var(--gemm)}#cursorText{font-variant-numeric:tabular-nums}.chart{width:100%;display:block}.legend{display:flex;flex-wrap:wrap;gap:20px;font-size:13px}.legend span::before{content:'';display:inline-block;width:12px;height:12px;background:var(--color);margin-right:6px;border-radius:2px}.table-wrap{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:14px}th,td{padding:10px 8px;border-bottom:1px solid var(--line);text-align:left}th{color:var(--muted);font-weight:500}td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}.bar{height:7px;background:var(--track);margin-top:5px;min-width:50px}.bar span{display:block;height:100%;background:var(--gemm)}.note{border-left:3px solid var(--line);padding-left:14px;color:var(--muted);font-size:13px}.detail{font-size:13px;min-height:24px;font-variant-numeric:tabular-nums}details{margin:24px 0;color:var(--muted);font-size:13px}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--surface);padding:12px;border-radius:6px}footer{margin-top:30px;color:var(--muted);font-size:12px}a{color:var(--gemm)}
+@media(max-width:600px){main{margin:20px auto;padding:0 14px}.stats{grid-template-columns:1fr;gap:8px}.stat{padding:12px}.value{font-size:25px}th,td{padding:8px 5px;font-size:12px}.controls{gap:10px}input[type=number]{width:130px}}
+</style>
+</head>
+<body><main>
+<div class="status">CORAL DIE · 正确性验证通过</div>
+<h1>算子在四个核上怎样执行</h1>
+<p id="context" class="muted"></p>
+<div class="controls">
+  <label>观察算子<select id="operator"><option value="all">全部算子</option></select></label>
+  <label>换算时钟（MHz，假设值）<input id="frequency" type="number" min="0.001" max="1000000" step="any" value="500"></label>
+  <button id="download" type="button">下载性能 JSON</button>
+</div>
+<div class="stats" aria-live="polite">
+  <div class="stat"><div class="muted">算子时间线跨度</div><div class="value" id="cycles">—</div><div class="caption">最早 START 到最晚 END；多核耗时不相加</div></div>
+  <div class="stat"><div class="muted">按假设时钟换算</div><div class="value" id="duration">—</div><div class="caption">频率只改变显示换算，不重新仿真</div></div>
+  <div class="stat"><div class="muted">Coral 退休指令总数</div><div class="value" id="instructions">—</div><div class="caption">各核采样区间求和；含标量与 RVV</div></div>
+</div>
+<h2>芯片执行时间线</h2>
+<div class="legend"><span style="--color:var(--gemm)">GEMM + bias + ReLU</span><span style="--color:var(--conv)">Conv3x3 + bias + ReLU</span><span style="--color:var(--add)">ADD</span></div>
+<svg id="timeline" class="chart" role="img" aria-label="四个 Coral 核的算子执行时间线"></svg>
+<div class="player"><button id="play" type="button">播放执行过程</button><input id="scrub" type="range" min="0" max="1000" value="0" aria-label="执行时间位置"><span id="cursorText"></span></div>
+<p class="detail" id="detail" aria-live="polite">点击时间条或下方“查看”定位到某个核。</p>
+<h2>每个核实际执行了多少指令</h2>
+<div class="table-wrap"><table><thead><tr><th>核 / 算子</th><th class="num">分片数量</th><th class="num">采样周期</th><th class="num">退休指令</th><th>定位</th></tr></thead><tbody id="cores"></tbody></table></div>
+<p class="note">时间条使用 RTL 在 AXI 日志写握手时记录的 START/END 周期，包含采样结果写回与日志开销。表中的采样周期和退休指令来自设备读取的 mcycle/minstret 差值，覆盖向量配置、权重打包、计算、行日志及边界采样开销，不是零开销的纯数学运算时间。一个 RVV 指令按一条指令统计，不按元素或 MAC 次数统计。四核总指令数不能直接与单核周期相除得到 IPC。</p>
+<details><summary>运行来源与复现信息</summary><p id="hostTime"></p><p>宿主耗时是电脑运行 RTL 仿真器的时间；上方微秒是芯片周期按假设频率换算，两者不同。</p><pre id="provenance"></pre></details>
+<footer>离线报告，可直接打开，无网络依赖。播放和拖动用于回放已完成的执行记录，不会启动新的仿真。</footer>
+<script id="profile-data" type="application/json">__NCORAL_PROFILE_DATA__</script>
+<script>
+'use strict';
+const data=JSON.parse(document.getElementById('profile-data').textContent);
+const byId=id=>document.getElementById(id),fmt=n=>Number(n).toLocaleString('zh-CN');
+const names={gemm:'GEMM',conv:'Conv3x3',add:'ADD'};
+const colors={gemm:'var(--gemm)',conv:'var(--conv)',add:'var(--add)'};
+const labels={serial:'两个算子串行 · 每组两个核',parallel:'两个算子并行 · 每组两个核',gemm:'单个 GEMM · 四核分片',conv:'单个卷积 · 四核分片',add:'向量加法 · 四核分片'};
+byId('context').textContent=(labels[data.scenario]||data.scenario)+' · 数据来自真实控制 CPU 调度的 RTL 仿真';
+byId('frequency').value=data.clock_mhz||500;
+byId('hostTime').textContent=data.host_wall_seconds===undefined?'宿主耗时未记录':'宿主仿真耗时：'+data.host_wall_seconds.toFixed(3)+' 秒';
+byId('provenance').textContent=JSON.stringify({counter_source:data.counter_source,created:data.created,firmware_sha256:data.firmware_sha256,simulator_sha256:data.simulator_sha256,command:data.command},null,2);
+data.operators.forEach((op,i)=>{const option=document.createElement('option');option.value=String(i);option.textContent=names[op.operator]+' #'+op.invocation;byId('operator').append(option)});
+let rows=[],start=0,end=1,playing=false,frame=0,lastFrame=0;
+function stop(){playing=false;cancelAnimationFrame(frame);byId('play').textContent='播放执行过程'}
+function selectRecord(row){const at=(row.start_cycle-start)/(end-start);byId('scrub').value=Math.max(0,Math.min(1000,Math.round(at*1000)));byId('detail').textContent='Coral '+row.core+' · '+names[row.operator]+' #'+row.invocation+' · '+fmt(row.sample_cycles)+' 采样周期 · '+fmt(row.retired_instructions)+' 条退休指令 · 全局周期 '+row.start_cycle+' → '+row.end_cycle;draw()}
+function update(){
+  stop();byId('scrub').value=0;
+  const choice=byId('operator').value;
+  const op=choice==='all'?null:data.operators[Number(choice)];
+  rows=data.cores.filter(row=>!op||(row.operator===op.operator&&row.invocation===op.invocation)).sort((a,b)=>a.core-b.core||a.start_cycle-b.start_cycle);
+  start=Math.min(...rows.map(row=>row.start_cycle));end=Math.max(...rows.map(row=>row.end_cycle));
+  byId('cycles').textContent=fmt(end-start)+' cycles';
+  byId('instructions').textContent=fmt(rows.reduce((sum,row)=>sum+row.retired_instructions,0))+' 条';
+  const tbody=byId('cores');tbody.replaceChildren();
+  const max=Math.max(...rows.map(row=>row.retired_instructions));
+  rows.forEach(row=>{
+    const tr=document.createElement('tr');
+    const label=document.createElement('td');label.textContent='C'+row.core+' / '+names[row.operator]+' #'+row.invocation;tr.append(label);
+    [row.work_items,row.sample_cycles,row.retired_instructions].forEach((value,index)=>{const td=document.createElement('td');td.className='num';td.textContent=fmt(value);if(index===2){const bar=document.createElement('div');bar.className='bar';const fill=document.createElement('span');fill.style.width=(100*value/max)+'%';fill.style.background=colors[row.operator];bar.append(fill);td.append(bar)}tr.append(td)});
+    const td=document.createElement('td'),button=document.createElement('button');button.type='button';button.textContent='查看';button.setAttribute('aria-label','查看 Coral '+row.core+' '+names[row.operator]+' #'+row.invocation);button.addEventListener('click',()=>selectRecord(row));td.append(button);tr.append(td);tbody.append(tr)
+  });
+  convertTime();draw();
+}
+function convertTime(){const mhz=Number(byId('frequency').value);byId('duration').textContent=Number.isFinite(mhz)&&mhz>0&&mhz<=1000000?((end-start)/mhz).toFixed(3)+' μs':'请输入有效频率'}
+function svgNode(tag,attrs,text){const el=document.createElementNS('http://www.w3.org/2000/svg',tag);Object.entries(attrs).forEach(([key,value])=>el.setAttribute(key,value));if(text!==undefined)el.textContent=text;return el}
+function draw(){
+  const svg=byId('timeline'),width=Math.max(260,svg.getBoundingClientRect().width),height=254,left=62,right=20,plot=width-left-right;
+  svg.setAttribute('viewBox','0 0 '+width+' '+height);svg.replaceChildren(svgNode('title',{},'四核算子时间线，横轴为相对最早 START 的芯片周期'));
+  for(let core=0;core<4;core++){
+    const y=25+core*46;svg.append(svgNode('text',{x:0,y:y+19,fill:'var(--fg)','font-size':13},'Coral '+core));
+    svg.append(svgNode('rect',{x:left,y,width:plot,height:28,rx:4,fill:'var(--track)'}));
+    rows.filter(row=>row.core===core).forEach(row=>{
+      const x=left+plot*(row.start_cycle-start)/(end-start),w=Math.max(2,plot*(row.end_cycle-row.start_cycle)/(end-start));
+      const rect=svgNode('rect',{x,y,width:w,height:28,rx:4,fill:colors[row.operator]});rect.append(svgNode('title',{},names[row.operator]+' #'+row.invocation+' · '+row.retired_instructions+' 条指令'));rect.addEventListener('click',()=>selectRecord(row));svg.append(rect);
+      if(w>66){const text=svgNode('text',{x:x+7,y:y+19,fill:'var(--surface)','font-size':12,'font-weight':650,'pointer-events':'none'},names[row.operator]);svg.append(text)}
+    });
+  }
+  const ticks=width<450?2:4;
+  for(let i=0;i<=ticks;i++){const x=left+plot*i/ticks;svg.append(svgNode('text',{x,y:225,fill:'var(--muted)','font-size':11,'text-anchor':i===0?'start':i===ticks?'end':'middle'},fmt(Math.round((end-start)*i/ticks))))}
+  svg.append(svgNode('text',{x:left,y:248,fill:'var(--muted)','font-size':12},'相对周期 · 全局起点 '+fmt(start)));
+  const fraction=Number(byId('scrub').value)/1000,cursor=start+(end-start)*fraction,x=left+plot*fraction;
+  svg.append(svgNode('line',{x1:x,x2:x,y1:14,y2:208,stroke:'var(--fg)','stroke-width':1.5,'stroke-dasharray':'4 3'}));
+  const active=rows.filter(row=>row.start_cycle<=cursor&&row.end_cycle>cursor).map(row=>'C'+row.core);
+  byId('cursorText').textContent='+'+fmt(Math.round(cursor-start))+' cycles · '+(active.length?'执行中 '+active.join(' / '):'等待或已结束');
+}
+byId('operator').addEventListener('change',update);byId('frequency').addEventListener('input',convertTime);
+byId('scrub').addEventListener('input',()=>{stop();draw()});
+byId('play').addEventListener('click',()=>{if(playing){stop();return}if(Number(byId('scrub').value)>=1000)byId('scrub').value=0;playing=true;lastFrame=0;byId('play').textContent='暂停';function tick(now){if(!playing)return;if(lastFrame)byId('scrub').value=Math.min(1000,Number(byId('scrub').value)+(now-lastFrame)/8);lastFrame=now;draw();if(Number(byId('scrub').value)>=1000)stop();else frame=requestAnimationFrame(tick)}frame=requestAnimationFrame(tick)});
+byId('download').addEventListener('click',()=>{const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'})),link=document.createElement('a');link.href=url;link.download='coral-profile.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000)});
+new ResizeObserver(draw).observe(byId('timeline'));update();
+</script>
+</main></body></html>

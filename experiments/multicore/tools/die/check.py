@@ -12,6 +12,7 @@ from ncoral_paths import ROOT
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'multicore'))
 from run import UPSTREAM,bounded,timestamp
 from build_firmware import validate_rvv_firmware
+from operators import validate_profile
 
 
 def main():
@@ -46,6 +47,10 @@ def main():
         ('complex_parallel_unequal_rows',['--scenario','2','--rows','3'],None),
         ('complex_serial_full_backpressure',['--scenario','1','--rows','8','--stall-period','5'],None),
         ('complex_parallel_full_backpressure',['--scenario','2','--rows','8','--stall-period','5'],None),
+        ('gemm_four_core_empty_shards',['--scenario','3','--rows','1','--stall-period','0'],None),
+        ('gemm_four_core_unequal_rows',['--scenario','3','--rows','7'],None),
+        ('conv_four_core_empty_shards',['--scenario','4','--rows','1','--stall-period','0'],None),
+        ('conv_four_core_unequal_rows',['--scenario','4','--rows','7'],None),
     ]
     report={'status':'STARTED','started':timestamp(),'cases':[],
             'jobs':args.jobs,
@@ -54,8 +59,10 @@ def main():
             'controller_binary_sha256':hashlib.sha256(boot.read_bytes()).hexdigest()}
     def run_case(case):
         name,options,expected_error=case
-        phase=bounded([str(binary),'--boot',str(boot),*options],
-                      420 if name.startswith('complex_') else 120,output/(name+'.log'),UPSTREAM)
+        profile_path=output/(name+'.profile.json')
+        profile_path.unlink(missing_ok=True)
+        phase=bounded([str(binary),'--boot',str(boot),*options,'--profile-json',str(profile_path)],
+                      420 if '--scenario' in options else 120,output/(name+'.log'),UPSTREAM)
         text=Path(phase['log']).read_text()
         results=[json.loads(line) for line in text.splitlines() if line.startswith('{"result":')]
         if expected_error:
@@ -70,6 +77,15 @@ def main():
                     and results[0].get('rtl_shared_sram') is True)
             if results:
                 phase['simulation']=results[0]
+            if passed:
+                try:
+                    profile=json.loads(profile_path.read_text())
+                    validate_profile(profile)
+                    phase['retired_instructions']=sum(core['retired_instructions'] for core in profile['cores'])
+                    phase['profile']=str(profile_path)
+                except (OSError,ValueError,KeyError,RuntimeError) as error:
+                    passed=False
+                    phase['profile_error']=str(error)
         return dict(name=name,passed=passed,expected_error=expected_error,**phase)
     try:
         # Processes share only immutable binaries. Logs and DUT reset/state are private.
@@ -80,6 +96,14 @@ def main():
         failed=[case['name'] for case in report['cases'] if not case['passed']]
         if failed:
             raise RuntimeError('regression failed: '+', '.join(failed))
+        by_name={case['name']:case for case in report['cases']}
+        # More work must retire more instructions: catches constant/stale counters.
+        for small,large in [('one_element','backpressure'),
+                            ('gemm_four_core_empty_shards','gemm_four_core_unequal_rows'),
+                            ('conv_four_core_empty_shards','conv_four_core_unequal_rows')]:
+            if by_name[small]['retired_instructions']>=by_name[large]['retired_instructions']:
+                raise RuntimeError('retired instruction count did not increase with work: '+large)
+        report['instruction_scaling_checks']='PASS'
         report['status']='PASS'
     except Exception as error:
         report.update(status='FAIL',error=str(error))

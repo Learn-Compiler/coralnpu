@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include "../../device/kernel_abi.h"
 #include "../../device/complex_abi.h"
+#include "../../device/profile.h"
 
 #define CORAL_COUNT 4u
 #define SHARED_BASE 0x20000000u
@@ -38,11 +39,11 @@ static inline uint32_t coral_address(unsigned core,uint32_t offset) {
 }
 
 void coral_load(const uint32_t *image,unsigned words,uint32_t entry);
-void coral_launch_add(uint32_t a,uint32_t b,uint32_t c,unsigned count);
+void coral_launch_add(uint32_t a,uint32_t b,uint32_t c,unsigned count,unsigned invocation);
 uint32_t coral_wait(uint32_t timeout_cycles);
-void coral_prepare_complex(unsigned rows);
+void coral_prepare_complex(unsigned rows,unsigned only_op);
 void coral_start_mask(unsigned mask);
 uint32_t coral_wait_mask(unsigned mask,uint32_t timeout_cycles);
-void complex_main(unsigned parallel,unsigned rows,uint32_t timeout_cycles);
+void complex_main(unsigned scenario,unsigned rows,uint32_t timeout_cycles);
 void die_finish(uint32_t code) __attribute__((noreturn));
 #endif

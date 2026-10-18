@@ -14,22 +14,22 @@ from run import UPSTREAM, bounded, timestamp
 from build_kernel import find_tool
 
 
-def validate_rvv_firmware():
+def validate_rvv_firmware(output=None, check_sources=True):
     """Reject stale scalar boot artifacts even when a caller skips compilation."""
-    output=ROOT/'die/logs/firmware'
+    output=Path(output) if output is not None else ROOT/'die/logs/firmware'
     report=json.loads((output/'report.json').read_text())
     evidence=report.get('rvv_assembly_evidence',{})
     if (report.get('status')!='PASS' or report.get('compute_backend')!='RVV' or
             set(evidence)!=set(('coral','complex')) or
             any(not checks or not all(checks.values()) for checks in evidence.values())):
         raise RuntimeError('missing verified RVV firmware; run python3 experiments/multicore/tools/ncoral.py build-code')
-    if report.get('build_script_sha256') != hashlib.sha256(Path(__file__).read_bytes()).hexdigest():
+    if check_sources and report.get('build_script_sha256') != hashlib.sha256(Path(__file__).read_bytes()).hexdigest():
         raise RuntimeError('firmware build recipe changed; run ncoral.py build-code')
     source = UPSTREAM / 'experiments/multicore'
     current_sources = {str(path.relative_to(UPSTREAM)): hashlib.sha256(path.read_bytes()).hexdigest()
                        for folder in (source/'device', source/'die/firmware')
                        for path in folder.iterdir() if path.is_file()}
-    if report.get('source_sha256') != current_sources:
+    if check_sources and report.get('source_sha256') != current_sources:
         raise RuntimeError('firmware sources changed; run ncoral.py build-code before reusing artifacts')
     for name,digest in report['outputs_sha256'].items():
         if hashlib.sha256((output/name).read_bytes()).hexdigest()!=digest:
@@ -48,7 +48,7 @@ def build(timeout=30, clang_path=None, lld_path=None):
     vector_isa='rv32im_zicsr_zve32x_zvl128b'
     report = {'status': 'STARTED', 'started': timestamp(), 'phases': [], 'commands': [],
               'controller_isa': 'rv32im', 'coral_isa': {'add':vector_isa,'complex':vector_isa},
-              'compute_backend':'RVV','abi': 'ilp32','rvv_assembly_evidence':{}}
+              'compute_backend':'RVV','abi': 'ilp32','profile_abi':1,'rvv_assembly_evidence':{}}
     def phase(name, command):
         report['commands'].append(command)
         result = bounded(command, timeout, output / (name + '.log'), ROOT)
@@ -60,7 +60,7 @@ def build(timeout=30, clang_path=None, lld_path=None):
         lld = find_tool(lld_path, ['ld.lld-17', 'ld.lld'])
         objcopy = find_tool(None, ['llvm-objcopy-17', 'llvm-objcopy'])
         objdump = find_tool(None, ['llvm-objdump-17', 'llvm-objdump'])
-        base = ['--target=riscv32-none-elf', '-mabi=ilp32', '-O2', '-ffreestanding',
+        base = ['--target=riscv32-none-elf', '-mabi=ilp32', '-DNCORAL_PROFILE=1', '-O2', '-ffreestanding',
                 '-fno-builtin', '-fno-stack-protector', '-fno-vectorize', '-fno-slp-vectorize',
                 '-fno-unwind-tables', '-fno-asynchronous-unwind-tables',
                 '-msmall-data-limit=0', '-mno-relax']
@@ -81,6 +81,7 @@ def build(timeout=30, clang_path=None, lld_path=None):
             disassembly=(output/(name+'_disassembly.log')).read_text()
             required=['vle32.v','vse32.v','vset','vadd.vv'] if name=='coral' else [
                 'vle32.v','vlse32.v','vse32.v','vmacc.vx','vmadd.vx','vmax.vx','vset']
+            required+=['mcycle','minstret']
             evidence={mnemonic:mnemonic in disassembly for mnemonic in required}
             report['rvv_assembly_evidence'][name]=evidence
             if not all(evidence.values()):

@@ -100,6 +100,6 @@ chisel_cc_library(
 
 cc_binary(
     name = "smoke_die",
-    srcs = ["die/smoke_die.cc", "die/complex_check.h", "device/complex_abi.h"],
+    srcs = ["die/smoke_die.cc", "die/complex_check.h", "die/profile_check.h", "device/complex_abi.h", "device/profile.h"],
     deps = [":single_die_cc", "//hdl/verilog:sram_backdoor"],
 )

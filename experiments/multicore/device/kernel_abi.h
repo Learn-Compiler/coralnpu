@@ -11,5 +11,8 @@ typedef struct {
   uint32_t c;
   uint32_t count;
   uint32_t done;
+#ifdef NCORAL_PROFILE
+  uint32_t core, profile, invocation;
+#endif
 } ClusterArgs;
 #endif

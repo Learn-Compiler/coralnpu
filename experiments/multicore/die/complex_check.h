@@ -5,7 +5,9 @@
 #include <limits>
 
 static void VerifyComplex(DieBench& tb,unsigned rows,unsigned scenario,
-                          const std::string& trace_path,unsigned stalls) {
+                          const std::string& trace_path,unsigned stalls,const std::string& profile_path) {
+  const bool single=scenario>=3;
+  const unsigned selected=scenario==3?0:1;
   auto read=[&](unsigned offset){return int32_t(tb.InspectWord(offset));};
   auto check_input=[&](unsigned base,unsigned count,auto formula) {
     for(unsigned i=0;i<count;++i)
@@ -25,6 +27,15 @@ static void VerifyComplex(DieBench& tb,unsigned rows,unsigned scenario,
   unsigned zeros[2]={0,0},positive[2]={0,0};
   for(unsigned op=0;op<2;++op) {
     const unsigned width=op?CONV_OW*CONV_CO:GEMM_N;
+    if(single && op!=selected) {
+      for(unsigned i=0;i<rows*width;++i)
+        if(uint32_t(read((op?CONV_Y:GEMM_Y)+4*i))!=0xdeadbeefu)
+          throw std::runtime_error("inactive operator output was modified");
+      if(tb.InspectWord((op?CONV_Y:GEMM_Y)-4)!=0xa5a5a5a5 ||
+         tb.InspectWord((op?CONV_Y:GEMM_Y)+4*rows*width)!=0x5a5a5a5a)
+        throw std::runtime_error("inactive operator guard overwritten");
+      continue;
+    }
     for(unsigned index=0;index<rows*width;++index) {
       const unsigned row=index/width;
       int64_t expected;
@@ -63,8 +74,10 @@ static void VerifyComplex(DieBench& tb,unsigned rows,unsigned scenario,
   unsigned active[2]={0,0};bool overlap=false;unsigned progress_during_overlap[2]={0,0};
   uint32_t last_cycle=0;
   for(const auto& e:tb.events) {
-    const unsigned op=e.op-1,lane=e.core%2;
-    const unsigned first=lane*(rows/2)+std::min(lane,rows%2),count=rows/2+(lane<rows%2);
+    if(e.op!=(single?selected+1:e.core<2?OP_GEMM:OP_CONV))
+      throw std::runtime_error("invalid operator/core assignment");
+    const unsigned op=e.op-1,lanes=single?4:2,lane=single?e.core:e.core%2;
+    const unsigned first=lane*(rows/lanes)+std::min(lane,rows%lanes),count=rows/lanes+(lane<rows%lanes);
     if(e.cycle<=last_cycle)throw std::runtime_error("device trace timestamp order");
     last_cycle=e.cycle;
     if(e.event==TRACE_START) {
@@ -88,8 +101,10 @@ static void VerifyComplex(DieBench& tb,unsigned rows,unsigned scenario,
   }
   for(auto s:state)if(s!=2)throw std::runtime_error("missing device START/END trace");
   for(unsigned core=0;core<4;++core) {
-    const unsigned count=rows/2+((core%2)<rows%2);
-    const unsigned expected=count*(core<2?GEMM_K*((GEMM_N+3)/4):CONV_OW*18*((CONV_CO+3)/4));
+    const unsigned lanes=single?4:2,lane=single?core:core%2;
+    const unsigned count=rows/lanes+(lane<rows%lanes);
+    const bool gemm=single?selected==0:core<2;
+    const unsigned expected=count*(gemm?GEMM_K*((GEMM_N+3)/4):CONV_OW*18*((CONV_CO+3)/4));
     if(macs[core]!=expected)throw std::runtime_error("hardware RVV MAC dispatch count mismatch core="+
       std::to_string(core)+" expected="+std::to_string(expected)+" actual="+std::to_string(macs[core]));
     std::cout<<"[RVV hardware] Coral"<<core<<" vector MAC dispatched="<<macs[core]
@@ -99,12 +114,13 @@ static void VerifyComplex(DieBench& tb,unsigned rows,unsigned scenario,
   if(scenario==2 && (!overlap || (rows>=7 &&
       (!progress_during_overlap[0] || !progress_during_overlap[1]))))
     throw std::runtime_error("parallel overlap/progress check failed");
+  WriteProfile(tb,scenario,1,profile_path);
   if(!trace_path.empty()) {
     std::ofstream out(trace_path);
     if(!out)throw std::runtime_error("cannot create trace JSON");
     out<<"{\"compute_backend\":\"RVV\",\"vlen_bits\":128,\"rvv_mac_dispatched\":["
        <<macs[0]<<','<<macs[1]<<','<<macs[2]<<','<<macs[3]
-       <<"],\"scenario\":\""<<(scenario==1?"serial":"parallel")<<"\",\"rows\":"<<rows<<",\"events\":[";
+       <<"],\"scenario\":\""<<ScenarioName(scenario)<<"\",\"rows\":"<<rows<<",\"events\":[";
     for(unsigned i=0;i<tb.events.size();++i) {
       const auto& e=tb.events[i];if(i)out<<',';
       out<<"{\"cycle\":"<<e.cycle<<",\"op\":"<<e.op<<",\"core\":"<<e.core
@@ -123,8 +139,8 @@ static void VerifyComplex(DieBench& tb,unsigned rows,unsigned scenario,
     <<"\"compute_backend\":\"RVV\",\"vlen_bits\":128,\"rvv_mac_dispatched\":["
     <<macs[0]<<','<<macs[1]<<','<<macs[2]<<','<<macs[3]<<"],"
     <<"\"rtl_shared_sram\":true,\"cpu_runs_runtime\":true,\"testbench_dispatch\":false,"
-    <<"\"scenario\":\""<<(scenario==1?"serial":"parallel")<<"\",\"rows\":"<<rows
-    <<",\"operators\":2,\"launches\":4,\"completion_mask\":15,\"checksum\":"<<checksum
+    <<"\"scenario\":\""<<ScenarioName(scenario)<<"\",\"rows\":"<<rows
+    <<",\"operators\":"<<(single?1:2)<<",\"launches\":4,\"completion_mask\":15,\"checksum\":"<<checksum
     <<",\"gemm_checked\":"<<outputs[0].size()<<",\"conv_checked\":"<<outputs[1].size()
     <<",\"overlap_observed\":"<<(overlap?"true":"false")
     <<",\"gemm_rows_during_overlap\":"<<progress_during_overlap[0]

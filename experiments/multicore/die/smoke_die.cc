@@ -37,13 +37,15 @@ class DieBench {
       const uint32_t word=model.io_traceData;
       if((word&0xf0000000u)!=0xc0000000u)throw std::runtime_error("invalid device trace magic");
       Event e{model.io_traceCycle,(word>>24)&15,(word>>20)&15,(word>>16)&15,word&65535};
-      if(e.core>3 || e.op!=(e.core<2?OP_GEMM:OP_CONV) || e.event<1 || e.event>4)
+      if(e.core>3 || e.op<1 || e.op>3 || e.event<1 || e.event>4)
         throw std::runtime_error("invalid device trace fields");
       events.push_back(e);
       std::cout<<"[cycle "<<e.cycle<<"] Coral"<<e.core<<" "
-               <<(e.op==OP_GEMM?"GEMM+bias+ReLU":"Conv3x3+bias+ReLU")<<" ";
+               <<(e.op==OP_GEMM?"GEMM+bias+ReLU":e.op==OP_CONV?"Conv3x3+bias+ReLU":"ADD")<<" ";
       if(e.event==TRACE_RVV_CONFIG)
         std::cout<<"RVV_CONFIG vlenb="<<(e.detail>>8)<<" vl(e32,m1)="<<(e.detail&255)<<std::endl;
+      else if(e.op==3)
+        std::cout<<(e.event==TRACE_START?"START invocation=":"END elements=")<<e.detail<<std::endl;
       else std::cout<<(e.event==TRACE_START?"START first_row=":e.event==TRACE_ROW?"ROW_DONE row=":"END rows=")
                     <<e.detail<<std::endl;
     }
@@ -78,11 +80,12 @@ class DieBench {
   }
 };
 
+#include "profile_check.h"
 #include "complex_check.h"
 
 int main(int argc,char** argv) {
   try {
-    std::string boot,trace;
+    std::string boot,trace,profile;
     unsigned count=37,rounds=1,mode=0,stalls=3,wait_cycles=1000000;
     unsigned scenario=0,rows=7;
     uint64_t limit=2000000;
@@ -91,11 +94,12 @@ int main(int argc,char** argv) {
       if(i+1==argc)throw std::runtime_error("missing option value");
       if(name=="--boot"){boot=argv[++i];continue;}
       if(name=="--trace-json"){trace=argv[++i];continue;}
+      if(name=="--profile-json"){profile=argv[++i];continue;}
       const uint64_t n=std::stoull(argv[++i]);
       if(name=="--elements" && n<=128)count=unsigned(n);
       else if(name=="--rounds" && n>=1 && n<=2)rounds=unsigned(n);
       else if(name=="--mode" && n<=3)mode=unsigned(n);
-      else if(name=="--scenario" && n<=2)scenario=unsigned(n);
+      else if(name=="--scenario" && n<=4)scenario=unsigned(n);
       else if(name=="--rows" && n>=1 && n<=8)rows=unsigned(n);
       else if(name=="--wait-cycles" && n>=1 && n<=1000000)wait_cycles=unsigned(n);
       else if(name=="--stall-period" && n<=1000)stalls=unsigned(n);
@@ -120,7 +124,7 @@ int main(int argc,char** argv) {
        tb.model.io_launches!=(scenario?4:4*rounds))
       throw std::runtime_error("incorrect die control/completion state");
     if(scenario) {
-      VerifyComplex(tb,rows,scenario,trace,stalls);
+      VerifyComplex(tb,rows,scenario,trace,stalls,profile);
       tb.model.final();return 0;
     }
     uint32_t checksum=0;
@@ -140,6 +144,7 @@ int main(int argc,char** argv) {
     for(uint32_t offset:{0x800u,0x1000u})
       if(tb.InspectWord(offset+4*count)!=0x5a5a5a5a)throw std::runtime_error("output suffix guard overwritten");
     if(tb.model.io_checksum!=checksum)throw std::runtime_error("CPU checksum mismatch");
+    WriteProfile(tb,0,rounds,profile);
     std::cout<<"{\"result\":\"PASS\",\"control_cpu\":\"PicoRV32 RV32IM RTL\",\"coral_cores\":4,"
              <<"\"compute_backend\":\"RVV\","
              <<"\"rtl_shared_sram\":true,\"cpu_runs_runtime\":true,\"testbench_dispatch\":false,"
