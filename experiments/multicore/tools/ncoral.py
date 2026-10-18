@@ -86,7 +86,7 @@ def main():
         description=__doc__,
         epilog="Use COMMAND --help for options. run/demo/test reuse built artifacts; build first.",
     )
-    parser.add_argument("command", choices=("doctor", "build", "build-sim", "build-code", "run", "demo", "test", "op"))
+    parser.add_argument("command", choices=("doctor", "build", "build-sim", "build-code", "run", "demo", "test", "op", "ui"))
     # Parse only the command so --help belongs to the selected subcommand.
     args = parser.parse_args(sys.argv[1:2])
     remaining = sys.argv[2:]
@@ -95,7 +95,7 @@ def main():
     if args.command == "build":
         return build(remaining)
     scripts = {"build-sim": "build_sim.py", "build-code": "build_firmware.py",
-               "run": "run.py", "demo": "demo_complex.py", "test": "check.py", "op": "operators.py"}
+               "run": "run.py", "demo": "demo_complex.py", "test": "check.py", "op": "operators.py", "ui": "ui.py"}
     if args.command in ("run", "demo"):
         remaining = ["--skip-build", "--skip-firmware", *remaining]
     os.execv(sys.executable, [sys.executable, str(HERE / "die" / scripts[args.command]), *remaining])

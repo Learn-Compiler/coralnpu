@@ -1,0 +1,139 @@
+{
+  "date": "2026-10-18",
+  "branch": "feat/ncoral-model",
+  "unit_tests": {
+    "passed": 13,
+    "total": 13,
+    "log": "tools/die/logs/dashboard_final.log"
+  },
+  "rtl_runs": [
+    {
+      "id": "ui_add_1792317860522401991",
+      "status": "PASS",
+      "settings": {
+        "operator": "add",
+        "rows": 7,
+        "elements": 37,
+        "rounds": 2,
+        "schedule": "parallel",
+        "stall_period": 3,
+        "run_timeout": 180,
+        "clock_mhz": 500.0
+      },
+      "deadline": "2026-10-18T10:07:20.524710+00:00",
+      "finished": "2026-10-18T10:04:35.230521+00:00",
+      "exit_code": 0,
+      "operators": [
+        {
+          "operator": "add",
+          "invocation": 0,
+          "start_cycle": 48878,
+          "end_cycle": 49184,
+          "elapsed_cycles": 306,
+          "retired_instructions": 176,
+          "cores": 4
+        },
+        {
+          "operator": "add",
+          "invocation": 1,
+          "start_cycle": 53282,
+          "end_cycle": 53588,
+          "elapsed_cycles": 306,
+          "retired_instructions": 176,
+          "cores": 4
+        }
+      ],
+      "firmware_sha256": "937c8b6385645e268326bc0e191ea43d017e243c333f613aa3a8478c1d1672f5",
+      "simulator_sha256": "59fed291935b9e702ea897e37b6998c7b6836d079c3208079aca37e9c58a95c8",
+      "host_wall_seconds": 14.414179
+    },
+    {
+      "id": "ui_conv_1792317931982050793",
+      "status": "PASS",
+      "settings": {
+        "operator": "conv",
+        "rows": 7,
+        "elements": 37,
+        "rounds": 1,
+        "schedule": "parallel",
+        "stall_period": 3,
+        "run_timeout": 180,
+        "clock_mhz": 500.0
+      },
+      "deadline": "2026-10-18T10:08:31.983912+00:00",
+      "finished": "2026-10-18T10:06:41.722382+00:00",
+      "exit_code": 0,
+      "operators": [
+        {
+          "operator": "conv",
+          "invocation": 0,
+          "start_cycle": 195062,
+          "end_cycle": 202307,
+          "elapsed_cycles": 7245,
+          "retired_instructions": 7821,
+          "cores": 4
+        }
+      ],
+      "firmware_sha256": "937c8b6385645e268326bc0e191ea43d017e243c333f613aa3a8478c1d1672f5",
+      "simulator_sha256": "59fed291935b9e702ea897e37b6998c7b6836d079c3208079aca37e9c58a95c8",
+      "host_wall_seconds": 69.627693
+    },
+    {
+      "id": "ui_gemm_1792317889696865659",
+      "status": "CANCELLED",
+      "settings": {
+        "operator": "gemm",
+        "rows": 7,
+        "elements": 37,
+        "rounds": 1,
+        "schedule": "parallel",
+        "stall_period": 3,
+        "run_timeout": 180,
+        "clock_mhz": 500.0
+      },
+      "deadline": "2026-10-18T10:07:49.699090+00:00",
+      "finished": "2026-10-18T10:05:15.726412+00:00",
+      "exit_code": 130
+    }
+  ],
+  "browser_checks": {
+    "coral_internal_diagrams": 4,
+    "matrix_preview_units": 4,
+    "functional_blocks": 84,
+    "parallel_stage_active": [
+      "c0-tile",
+      "c0-pe",
+      "c1-tile",
+      "c1-pe",
+      "c2-vrf",
+      "c2-valu",
+      "c3-vrf",
+      "c3-valu"
+    ],
+    "serial_barrier_active": [
+      "cpu-mem",
+      "runtime",
+      "status"
+    ],
+    "checked": [
+      "module selection",
+      "control/data filters",
+      "play/pause",
+      "step slider",
+      "CPU/core focus",
+      "matrix visibility",
+      "desktop/narrow layout",
+      "existing Conv report and pair serial controls"
+    ],
+    "console_errors": 0
+  },
+  "matrix_status": "Visual preview of upstream VME/Zvt; not enabled in the four-core RTL simulator",
+  "source_sha256": {
+    "tools/die/ui.py": "549b29bdf2dc6cbe4c509c0c6ea2f5a9751ab67256b3de3a18dc3645cecbdf97",
+    "tools/die/dashboard.html": "23f4c9a45c1d63e607fc54c1c1da73c8a13f31f1648605c246cc071c93d49d17",
+    "tools/die/architecture.js": "53560c3f8d11815c0602a43f941aa3b2d378df26ff6446a3cecd478f516151ca",
+    "tools/die/operators.py": "061b5e294614233d67a886f21728823cb7e2b96c09e201362fbf3da373a4ceea",
+    "tools/multicore/run.py": "edaa79d89d3ef5efa698a333d7317bf8aede832d4a495f0d3dd26eff28ca1ea6",
+    "tools/ncoral.py": "db1104a7a3a17fa6679275ac78a35dd6fe3d863d386e195df83e036e69b5222e"
+  }
+}

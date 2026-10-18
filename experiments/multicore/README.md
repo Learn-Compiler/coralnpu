@@ -88,3 +88,13 @@ kernel 的 `coral_log()` 向 `0x20003ff0` 执行真实 MMIO 写。RTL 在 AXI �
 - [tools/multicore/](tools/multicore/)：共享工具依赖及早期独立簇运行/验证入口。
 
 `smoke_scalar`、`smoke_rvv`、`smoke_quad_scalar`、`smoke_quad_rvv` 保留早期测试台 runtime 实验；当前真实控制 CPU 的主入口是 `smoke_die`。PicoRV32 固定源码、ISC 许可证与哈希保存在 [vendor 目录](die/vendor/picorv32/)，构建脚本检查来源完整性。原 Coral 执行核源码保持原样，实验通过参数和集成代码启用 RVV。
+
+## 网页架构图与运行工作台
+
+```bash
+python3 experiments/multicore/tools/ncoral.py ui --open
+```
+
+在 <http://127.0.0.1:8765/architecture> 查看可点击的单 CPU + 四 Coral 架构图，或在 <http://127.0.0.1:8765/> 设置算子参数、启动仿真并查看日志和性能报告。
+
+详见 [网页使用说明](docs/dashboard.md)。

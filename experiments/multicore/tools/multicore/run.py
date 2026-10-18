@@ -10,6 +10,7 @@ from pathlib import Path
 import signal
 import subprocess
 import sys
+import time
 import urllib.request
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
@@ -48,23 +49,39 @@ def bazel_binary():
     return path
 
 
-def bounded(command, seconds, log, cwd):
+def bounded(command, seconds, log, cwd, *, cancel_event=None, on_started=None):
     start = timestamp()
     expected_end = (dt.datetime.fromisoformat(start) + dt.timedelta(seconds=seconds)).isoformat()
     print(f"Starting {log.name}; limit={seconds}s; deadline={expected_end}", flush=True)
+    if on_started:
+        on_started({"started": start, "deadline": expected_end, "deadline_seconds": seconds})
     with log.open("w") as stream:
         process = subprocess.Popen(command, cwd=cwd, stdout=stream, stderr=subprocess.STDOUT,
                                    start_new_session=True)
         try:
-            code = process.wait(timeout=seconds)
-        except (subprocess.TimeoutExpired, KeyboardInterrupt):
-            os.killpg(process.pid, signal.SIGTERM)
+            end = time.monotonic() + seconds
+            while True:
+                if cancel_event is not None and cancel_event.is_set():
+                    raise InterruptedError("cancel requested")
+                remaining = end - time.monotonic()
+                if remaining <= 0:
+                    raise subprocess.TimeoutExpired(command, seconds)
+                try:
+                    code = process.wait(timeout=min(0.2, remaining))
+                    break
+                except subprocess.TimeoutExpired:
+                    continue
+        except (subprocess.TimeoutExpired, KeyboardInterrupt, InterruptedError) as error:
+            try:
+                os.killpg(process.pid, signal.SIGTERM)
+            except ProcessLookupError:
+                pass
             try:
                 process.wait(timeout=10)
             except subprocess.TimeoutExpired:
                 os.killpg(process.pid, signal.SIGKILL)
                 process.wait()
-            code = 124
+            code = 130 if isinstance(error, InterruptedError) else 124
     return {"started": start, "finished": timestamp(), "deadline": expected_end, "deadline_seconds": seconds,
             "exit_code": code, "log": str(log)}
 

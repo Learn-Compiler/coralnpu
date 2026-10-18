@@ -88,6 +88,44 @@ def positive_clock(value):
     return number
 
 
+
+def execute_operator(args, *, cancel_event=None, on_started=None):
+    """Run the same measured, correctness-checked path for CLI and local UI."""
+    firmware = load_bundle(args.firmware.resolve())
+    binary = UPSTREAM/'bazel-bin/experiments/multicore/smoke_die'
+    if not binary.is_file():
+        raise RuntimeError('simulator missing; run ncoral.py build-sim')
+    scenario = {'add': 0, 'gemm': 3, 'conv': 4, 'pair': 1 if args.schedule == 'serial' else 2}[args.operator]
+    output = args.output or ROOT/'die/logs/operators'/(
+        args.operator+'_'+timestamp().replace(':', '-')+'_'+str(time.time_ns()))
+    output.mkdir(parents=True, exist_ok=False)
+    raw_path = output/'counters.json'
+    command = [str(binary), '--boot', str(args.firmware.resolve()), '--scenario', str(scenario),
+               '--rows', str(args.rows), '--elements', str(args.elements), '--rounds', str(args.rounds),
+               '--stall-period', str(args.stall_period), '--profile-json', str(raw_path)]
+    phase = bounded(command, args.run_timeout, output/'run.log', UPSTREAM,
+                    cancel_event=cancel_event, on_started=on_started)
+    (output/'execution.json').write_text(json.dumps(dict(command=command, **phase), indent=2)+'\n')
+    if phase['exit_code']:
+        raise RuntimeError('operator failed or timed out; no successful report was generated. See '+phase['log'])
+    results = [json.loads(line) for line in (output/'run.log').read_text().splitlines()
+               if line.startswith('{"result":')]
+    if len(results) != 1 or results[0].get('result') != 'PASS' or not results[0].get('cpu_runs_runtime'):
+        raise RuntimeError('missing CPU-controlled correctness PASS')
+    profile = json.loads(raw_path.read_text())
+    validate_profile(profile)
+    profile.update(clock_mhz=args.clock_mhz, clock_is_assumed=True, simulation=results[0],
+                   host_wall_seconds=phase_duration(phase), command=command,
+                   firmware_sha256=firmware['outputs_sha256']['controller.bin'],
+                   simulator_sha256=hashlib.sha256(binary.read_bytes()).hexdigest(),
+                   created=timestamp())
+    profile_path = output/'profile.json'
+    profile_path.write_text(json.dumps(profile, indent=2)+'\n')
+    html = output/'report.html'
+    render(profile, html)
+    return profile, profile_path, html
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest='command', required=True)
@@ -137,36 +175,7 @@ def main():
             parser.error('--rows applies to GEMM/Conv, not ADD')
         if args.operator != 'pair' and args.schedule != 'parallel':
             parser.error('--schedule applies only to pair')
-        binary = UPSTREAM/'bazel-bin/experiments/multicore/smoke_die'
-        if not binary.is_file():
-            raise RuntimeError('simulator missing; run ncoral.py build-sim')
-        scenario = {'add': 0, 'gemm': 3, 'conv': 4, 'pair': 1 if args.schedule == 'serial' else 2}[args.operator]
-        output = args.output or ROOT/'die/logs/operators'/(
-            args.operator+'_'+timestamp().replace(':', '-')+'_'+str(time.time_ns()))
-        output.mkdir(parents=True, exist_ok=False)
-        raw_path = output/'counters.json'
-        command = [str(binary), '--boot', str(args.firmware.resolve()), '--scenario', str(scenario),
-                   '--rows', str(args.rows), '--elements', str(args.elements), '--rounds', str(args.rounds),
-                   '--stall-period', str(args.stall_period), '--profile-json', str(raw_path)]
-        phase = bounded(command, args.run_timeout, output/'run.log', UPSTREAM)
-        (output/'execution.json').write_text(json.dumps(dict(command=command, **phase), indent=2)+'\n')
-        if phase['exit_code']:
-            raise RuntimeError('operator failed or timed out; no successful report was generated. See '+phase['log'])
-        results = [json.loads(line) for line in (output/'run.log').read_text().splitlines()
-                   if line.startswith('{"result":')]
-        if len(results) != 1 or results[0].get('result') != 'PASS' or not results[0].get('cpu_runs_runtime'):
-            raise RuntimeError('missing CPU-controlled correctness PASS')
-        profile = json.loads(raw_path.read_text())
-        validate_profile(profile)
-        profile.update(clock_mhz=args.clock_mhz, clock_is_assumed=True, simulation=results[0],
-                       host_wall_seconds=phase_duration(phase), command=command,
-                       firmware_sha256=firmware['outputs_sha256']['controller.bin'],
-                       simulator_sha256=hashlib.sha256(binary.read_bytes()).hexdigest(),
-                       created=timestamp())
-        profile_path = output/'profile.json'
-        profile_path.write_text(json.dumps(profile, indent=2)+'\n')
-        html = output/'report.html'
-        render(profile, html)
+        profile, profile_path, html = execute_operator(args)
         print('\nPASS  芯片周期 / Coral 退休指令（标量 + RVV）')
         for op in profile['operators']:
             print(f"  {op['operator']} #{op['invocation']}: {op['elapsed_cycles']:,} cycles, "

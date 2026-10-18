@@ -153,3 +153,13 @@ python3 experiments/multicore/tools/ncoral.py test --jobs 3
 系统的实际范围和后续任务见 [架构与待办](model_status.md)，历史 RVV 运行证据见 [RVV 验证](rvv_execution.md)。
 
 需要单独选择已编译算子、查看执行周期与退休指令数时，使用 [算子运行与性能报告](operator_profiling.md) 中的 `ncoral.py op` 入口。
+
+## 网页架构图与运行工作台
+
+```bash
+python3 experiments/multicore/tools/ncoral.py ui --open
+```
+
+在 <http://127.0.0.1:8765/architecture> 查看可点击的单 CPU + 四 Coral 架构图，或在 <http://127.0.0.1:8765/> 设置算子参数、启动仿真并查看日志和性能报告。
+
+详见 [网页使用说明](dashboard.md)。
