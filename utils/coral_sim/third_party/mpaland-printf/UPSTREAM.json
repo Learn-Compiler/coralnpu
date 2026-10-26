@@ -1,0 +1,11 @@
+{
+  "repository": "https://github.com/mpaland/printf",
+  "commit": "d3b984684bb8a8bdc48cc7a1abecb93ce59bbe3e",
+  "license": "MIT",
+  "sha256": {
+    "printf.c": "d724a61385687a383c3d8b9cc56f314aa31a065375ad53242bfe398edbfeb1f5",
+    "printf.h": "164acb9dd6e92c590413b4961970e9c0affef75703fe37b2bb22438b52808963",
+    "LICENSE": "3fd3a80a06465d0b4affa1d1a16e18a8d2ef42a52eb52060109ae12f1f878f72",
+    "README.md": "a16288150bc2a06dd1074e47fc667f7ed2ef9975d2537fbeb9b60fe23444bab6"
+  }
+}

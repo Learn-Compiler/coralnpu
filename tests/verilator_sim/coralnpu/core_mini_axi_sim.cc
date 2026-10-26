@@ -17,6 +17,7 @@
 #include <sys/stat.h>
 
 #include <optional>
+#include <iostream>
 #include <string>
 #include <thread>
 
@@ -39,19 +40,27 @@ ABSL_FLAG(std::string, binary, "", "Binary to execute");
 ABSL_FLAG(bool, debug_axi, false, "Enable AXI traffic debugging");
 ABSL_FLAG(bool, instr_trace, false, "Log instructions to console");
 ABSL_FLAG(bool, backdoor_load, false, "Enable high-speed backdoor code loading");
+ABSL_FLAG(std::string, dump_memory, "", "Dump final RTL SRAM contents to this file");
+ABSL_FLAG(std::string, console_file, "", "Write target UART bytes here instead of stdout");
 
 static bool run(const char* name, const std::string binary, const int cycles,
                 const bool trace, const bool debug_axi, const bool instr_trace,
-                const bool backdoor_load) {
+                const bool backdoor_load, const std::string& dump_memory,
+                const std::string& console_file) {
+  FILE* console = console_file.empty() ? stdout : std::fopen(console_file.c_str(), "wb");
+  CHECK(console != nullptr) << "Cannot open target console file";
   absl::Mutex halted_mtx;
   absl::CondVar halted_cv;
+  bool halted_received = false;
   CoreMiniAxi_tb tb(CoreMiniAxi_tb::kCoreMiniAxiModelName, cycles, /* random= */ false, debug_axi,
                     instr_trace, backdoor_load,
                     /*wfi_cb=*/std::nullopt,
-                    /*halted_cb=*/[&halted_mtx, &halted_cv]() {
+                    /*halted_cb=*/[&halted_mtx, &halted_cv, &halted_received]() {
                       absl::MutexLock lock_(&halted_mtx);
+                      halted_received = true;
                       halted_cv.SignalAll();
                     });
+  tb.SetConsole(console);
   // Ensure we call sc_start @0 time, before we startup anything else.
   // This allows Verilog `initial` blocks to run before we try to interact with the
   // DUT model.
@@ -69,8 +78,11 @@ static bool run(const char* name, const std::string binary, const int cycles,
 
   {
     absl::MutexLock lock_(&halted_mtx);
-    halted_cv.Wait(&halted_mtx);
+    while (!halted_received) halted_cv.Wait(&halted_mtx);
   }
+
+  CoreMiniAxi_tb::RunCounters counters;
+  CHECK_OK(tb.SnapshotCountersSync(&counters));
 
   if (!tb.io_fault && !tb.tohost_halt) {
     CHECK_OK(tb.CheckStatusSync());
@@ -78,13 +90,38 @@ static bool run(const char* name, const std::string binary, const int cycles,
 
   sc_stop();
   sc_main_thread.join();
-  return (!tb.io_fault && !(tb.tohost_halt && tb.tohost_val != 1));
+  if (!console_file.empty()) CHECK_EQ(std::fclose(console), 0);
+  const bool dump_ok = dump_memory.empty() ||
+      sram_backdoor_dump_memory(dump_memory.c_str()) == 0;
+  const bool success = !tb.io_fault &&
+      !(tb.tohost_halt && tb.tohost_val != 1) && dump_ok;
+  std::cerr << "Retired instructions: " << counters.retired_instructions << '\n'
+            << "Core cycles: " << counters.cycles << '\n'
+            << "Simulation status: " << (success ? "PASS" : "FAIL") << std::endl;
+  std::cerr << "CORAL_SIM_RESULT {\"status\":\"" << (success ? "PASS" : "FAIL")
+            << "\",\"halted\":" << (tb.io_halted.read() ? "true" : "false")
+            << ",\"fault\":" << (tb.io_fault.read() ? "true" : "false")
+            << ",\"dump_ok\":" << (dump_ok ? "true" : "false")
+            << ",\"retired_instructions\":" << counters.retired_instructions
+            << ",\"core_cycles\":" << counters.cycles
+            << ",\"mcause\":" << counters.mcause
+            << ",\"mepc\":" << counters.mepc
+            << ",\"mtval\":" << counters.mtval
+            << ",\"simulation_time_ns\":" << sc_time_stamp().to_seconds() * 1e9
+            << "}" << std::endl;
+  return success;
 }
 
 extern "C" int sc_main(int argc, char** argv) {
   absl::InitializeLog();
-  absl::SetProgramUsageMessage("CoreMiniAxi simulator");
+  absl::SetProgramUsageMessage("Usage: coral-sim program.elf [options]");
   auto args = absl::ParseCommandLine(argc, argv);
+  if (args.size() == 2 && absl::GetFlag(FLAGS_binary).empty()) {
+    absl::SetFlag(&FLAGS_binary, std::string(args[1]));
+  } else if (args.size() != 1) {
+    LOG(ERROR) << "Usage: coral-sim program.elf [options]";
+    return 2;
+  }
 
   // Pass clean arguments to Verilator.
   int v_argc = args.size();
@@ -99,5 +136,6 @@ extern "C" int sc_main(int argc, char** argv) {
   return run(Sysc_tb::get_name(argv[0]), absl::GetFlag(FLAGS_binary),
       absl::GetFlag(FLAGS_cycles), absl::GetFlag(FLAGS_trace),
       absl::GetFlag(FLAGS_debug_axi), absl::GetFlag(FLAGS_instr_trace),
-      absl::GetFlag(FLAGS_backdoor_load)) ? 0 : 1;
+      absl::GetFlag(FLAGS_backdoor_load), absl::GetFlag(FLAGS_dump_memory),
+      absl::GetFlag(FLAGS_console_file)) ? 0 : 1;
 }

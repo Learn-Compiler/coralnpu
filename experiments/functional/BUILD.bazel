@@ -1,0 +1,13 @@
+load("@rules_cc//cc:defs.bzl", "cc_binary")
+
+cc_binary(
+    name = "coral_iss",
+    srcs = ["coral_iss.cc"],
+    deps = [
+        "@coralnpu_mpact//sim:coralnpu_simulator",
+        "@com_google_mpact-riscv//riscv:riscv_state",
+        "@com_google_mpact-riscv//riscv:riscv_top",
+        "@mpact-sim//mpact/sim/util/memory",
+        "@com_google_absl//absl/log:initialize",
+    ],
+)

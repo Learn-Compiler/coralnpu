@@ -219,6 +219,20 @@ struct CoreMiniAxi_tb : Sysc_tb {
   absl::Status CheckStatusSync();
   absl::Status CheckStatusAsync();
 
+  struct RunCounters {
+    uint64_t cycles = 0;
+    uint64_t retired_instructions = 0;
+    uint32_t mepc = 0;
+    uint32_t mtval = 0;
+    uint32_t mcause = 0;
+  };
+  // Halt first. Gate the core without resetting it, then read its real CSRs
+  // through AXI. Does not require instrumentation or symbols in the ELF.
+  absl::Status SnapshotCountersSync(RunCounters* counters);
+
+  void SetConsole(FILE* console) { xbar_.set_console(console); }
+  void snapshot_thread();
+
   VERILATOR_MODEL *core() { return core_.get(); }
 
   void EnqueueTransactionSync(std::vector<DataTransfer> transfers);
@@ -262,6 +276,14 @@ struct CoreMiniAxi_tb : Sysc_tb {
   absl::Mutex transfer_queue_mtx_;
   absl::CondVar transfer_queue_cv_;
   std::queue<std::unique_ptr<TrafficDesc>> transfer_queue_;
+
+  absl::Mutex snapshot_mtx_;
+  absl::CondVar snapshot_cv_;
+  bool snapshot_pending_ = false;
+  bool snapshot_inflight_ = false;
+  bool snapshot_done_ = false;
+  absl::Status snapshot_status_;
+  RunCounters snapshot_counters_;
 
   void axi_transaction_done_cb_(TLMTrafficGenerator *gen, int threadId);
 

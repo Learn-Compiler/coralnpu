@@ -90,6 +90,7 @@ CoreMiniAxi_tb::CoreMiniAxi_tb(sc_module_name n, int loops, bool random,
 
   SC_HAS_PROCESS(CoreMiniAxi_tb);
   SC_THREAD(tohost_reader_thread);
+  SC_THREAD(snapshot_thread);
 
   tg_.setStartDelay(sc_time(5, SC_NS));
   if (debug_axi) {
@@ -330,6 +331,10 @@ absl::Status CoreMiniAxi_tb::LoadElfAsync(const std::string& file_name) {
     uint64_t entry_point = ::LoadElf(data8, [this, &elf_transfers](void *dest, const void *src,
                                                                    size_t count) {
       uint64_t addr      = reinterpret_cast<uint64_t>(dest);
+      if (Xbar::contains_memory(addr, count)) {
+        xbar_.load_memory(addr, src, count);
+        return dest;
+      }
       uint32_t itcm_size = KP_itcmSizeKBytes * 1024;
       uint32_t dtcm_size = KP_dtcmSizeKBytes * 1024;
       uint32_t dtcm_base = (KP_itcmSizeKBytes == 8 && KP_dtcmSizeKBytes == 32) ? 0x10000 : 0x100000;
@@ -433,6 +438,65 @@ absl::Status CoreMiniAxi_tb::CheckStatusAsync() {
       std::vector<DataTransfer>({utils::Read(csr_addr_ + 0x8, 4),
                                  utils::Expect(DATA(1, 0, 0, 0), 4)}))));
   return absl::OkStatus();
+}
+
+absl::Status CoreMiniAxi_tb::SnapshotCountersSync(RunCounters* counters) {
+  absl::MutexLock lock(&snapshot_mtx_);
+  if (snapshot_pending_ || snapshot_inflight_) {
+    return absl::FailedPreconditionError("counter snapshot already in progress");
+  }
+  snapshot_done_ = false;
+  snapshot_pending_ = true;
+  while (!snapshot_done_) snapshot_cv_.Wait(&snapshot_mtx_);
+  *counters = snapshot_counters_;
+  return snapshot_status_;
+}
+
+void CoreMiniAxi_tb::snapshot_thread() {
+  while (true) {
+    wait(clock.posedge_event());
+    {
+      absl::MutexLock lock(&snapshot_mtx_);
+      if (!snapshot_pending_) continue;
+      snapshot_pending_ = false;
+      snapshot_inflight_ = true;
+    }
+    auto transfer = [this](tlm::tlm_command command, uint64_t address,
+                           uint8_t* data, unsigned length) {
+      tlm::tlm_generic_payload trans;
+      sc_time delay = SC_ZERO_TIME;
+      trans.set_command(command);
+      trans.set_address(address);
+      trans.set_data_ptr(data);
+      trans.set_data_length(length);
+      trans.set_streaming_width(length);
+      trans.set_response_status(tlm::TLM_INCOMPLETE_RESPONSE);
+      tohost_initiator_socket_->b_transport(trans, delay);
+      return !trans.is_response_error();
+    };
+    // Control bit 1 gates the core; bit 0 MUST remain clear to preserve CSRs.
+    uint8_t control[4] = {2, 0, 0, 0};
+    uint8_t words[32] = {};
+    bool ok = transfer(tlm::TLM_WRITE_COMMAND, csr_addr_, control, sizeof(control));
+    if (ok) ok = transfer(tlm::TLM_READ_COMMAND, csr_addr_ + 0x100, words, sizeof(words));
+    auto word = [&words](unsigned index) -> uint32_t {
+      const uint8_t* p = words + index * 4;
+      return uint32_t(p[0]) | (uint32_t(p[1]) << 8) |
+             (uint32_t(p[2]) << 16) | (uint32_t(p[3]) << 24);
+    };
+    {
+      absl::MutexLock lock(&snapshot_mtx_);
+      snapshot_counters_.mepc = word(1);
+      snapshot_counters_.mtval = word(2);
+      snapshot_counters_.mcause = word(3);
+      snapshot_counters_.cycles = uint64_t(word(4)) | (uint64_t(word(5)) << 32);
+      snapshot_counters_.retired_instructions = uint64_t(word(6)) | (uint64_t(word(7)) << 32);
+      snapshot_status_ = ok ? absl::OkStatus() : absl::InternalError("AXI counter readback failed");
+      snapshot_inflight_ = false;
+      snapshot_done_ = true;
+      snapshot_cv_.SignalAll();
+    }
+  }
 }
 
 void CoreMiniAxi_tb::TraceInstructions() {

@@ -32,7 +32,7 @@ Coral NPU offers the following top-level feature set:
 
 ## System Requirements
 
-* Bazel 8.6.0
+* Bazel 9.1.0 (see `.bazelversion`)
 * Python 3.9-3.13
 
 See [coralnpu.dockerfile](utils/coralnpu.dockerfile) for a detailed list of
@@ -45,6 +45,16 @@ corresponding test READMEs:
 
 * [Cocotb Tests (RTL & Netlist simulation)](tests/cocotb/README.md)
 * [UVM Testbench (Co-simulation)](tests/uvm/README.md)
+
+## Single-core ELF simulator
+
+The `coralnpu-sim` branch includes a functional ELF runner, an RTL runner, and a
+self-contained build/test entry point. See [the simulator guide](utils/coral_sim/README.md).
+
+```bash
+./build-sim.sh --test
+out/coral-sim/bin/coral-sim out/coral-sim/elf/hello/hello.elf
+```
 
 ## Quick Start
 

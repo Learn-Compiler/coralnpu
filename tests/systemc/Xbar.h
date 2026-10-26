@@ -32,12 +32,29 @@ class Xbar : sc_core::sc_module {
 
   tlm_utils::simple_target_socket<Xbar>& socket() { return socket_; }
 
+  // Configure before starting simulation; the caller owns the stream.
+  void set_console(FILE* console) { console_ = console; }
+
+  static bool contains_memory(uint64_t address, size_t size) {
+    return address >= kMemoryAddr && address - kMemoryAddr <= kMemorySizeBytes &&
+           size <= kMemorySizeBytes - (address - kMemoryAddr);
+  }
+
+  // ELF image loading while the core remains reset/clock-gated. Execution
+  // still fetches every instruction through the RTL AXI master interface.
+  void load_memory(uint64_t address, const void* bytes, size_t size) {
+    if (!contains_memory(address, size)) {
+      SC_REPORT_FATAL("Memory", "ELF segment outside external RAM");
+      return;
+    }
+    memcpy(memory_ + (address - kMemoryAddr), bytes, size);
+  }
+
   void b_transport(tlm::tlm_generic_payload& trans, sc_core::sc_time& delay) {
     sc_dt::uint64 addr = trans.get_address();
     unsigned int len = trans.get_data_length();
 
-    if (((addr & kMemoryAddr) == kMemoryAddr) &&
-        (addr + len < kMemoryAddr + kMemorySizeBytes)) {
+    if (contains_memory(addr, len)) {
       memory_b_transport_(trans, delay);
     } else if (addr == kUartAddr) {
       uart_b_transport_(trans, delay);
@@ -99,46 +116,26 @@ class Xbar : sc_core::sc_module {
   }
 
   void uart_b_transport_(tlm::tlm_generic_payload& trans, sc_core::sc_time& delay) {
-    sc_dt::uint64 addr = trans.get_address() & ~kUartAddr;
     unsigned char* ptr = trans.get_data_ptr();
     unsigned int len = trans.get_data_length();
-    unsigned int streaming_width = trans.get_streaming_width();
     unsigned char* be = trans.get_byte_enable_ptr();
     unsigned int be_len = trans.get_byte_enable_length();
-    if (streaming_width == 0) {
-      streaming_width = len;
+    if (!trans.is_write()) {
+      trans.set_response_status(tlm::TLM_COMMAND_ERROR_RESPONSE);
+      return;
     }
-
-    if (!be_len && streaming_width == len) {
-      for (unsigned int pos = 0; pos < len; ++pos) {
-        if (ptr[pos] == '\n') {
-          uart_buffer_.push_back('\0');
-          printf("%s\n", uart_buffer_.data());
-          uart_buffer_.clear();
-        } else {
-          uart_buffer_.push_back(ptr[pos]);
-        }
+    // AXI byte enables describe bytes, not 8-byte words. Forward exactly the
+    // enabled bytes, including NUL and a final fragment without a newline.
+    for (unsigned int pos = 0; pos < len; ++pos) {
+      if (be && be_len && be[pos % be_len] != TLM_BYTE_ENABLED) continue;
+      if (std::fwrite(ptr + pos, 1, 1, console_) != 1) {
+        trans.set_response_status(tlm::TLM_GENERIC_ERROR_RESPONSE);
+        return;
       }
-    } else {
-      for (unsigned int pos = 0; pos < len / 8; ++pos) {
-        if (be_len && be[pos % (be_len / 8)] != TLM_BYTE_ENABLED) {
-          continue;
-        }
-
-        if (addr != 0 || trans.is_read()) {
-          trans.set_response_status(tlm::TLM_ADDRESS_ERROR_RESPONSE);
-          SC_REPORT_FATAL("Uart", "Unsupported access\n");
-          return;
-        }
-
-        if (ptr[pos] == '\n') {
-          uart_buffer_.push_back('\0');
-          printf("%s\n", uart_buffer_.data());
-          uart_buffer_.clear();
-        } else {
-          uart_buffer_.push_back(ptr[pos]);
-        }
-      }
+    }
+    if (std::fflush(console_) != 0) {
+      trans.set_response_status(tlm::TLM_GENERIC_ERROR_RESPONSE);
+      return;
     }
     trans.set_response_status(tlm::TLM_OK_RESPONSE);
   }
@@ -147,7 +144,7 @@ class Xbar : sc_core::sc_module {
   static constexpr size_t kMemorySizeBytes = 0x400000;
   static constexpr uint32_t kUartAddr = 0x54000000;
   uint8_t memory_[kMemorySizeBytes];
-  std::vector<char> uart_buffer_;
+  FILE* console_ = stdout;
   tlm_utils::simple_target_socket<Xbar> socket_;
 };
 

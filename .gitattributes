@@ -1,0 +1,2 @@
+# Preserve byte-for-byte upstream printf files (including CRLF and EOF blanks).
+utils/coral_sim/third_party/mpaland-printf/* -text -whitespace
