@@ -16,7 +16,7 @@ import threading
 from zoneinfo import ZoneInfo
 import feedback
 
-from paths import BASE, ROOT as SOURCE, OUT, llvm_tool
+from paths import BASE, ROOT as SOURCE, OUT, llvm_tool, find_clang
 SIM = OUT / "bin/coral-rvv-sim"
 
 
@@ -148,10 +148,8 @@ def compile_c(source, clang):
     source = source.resolve()
     if not source.is_file():
         raise RuntimeError("source missing: " + str(source))
-    compiler = shutil.which(clang)
-    linker = llvm_tool("ld.lld", clang)
-    if compiler is None or linker is None:
-        raise RuntimeError("requires Clang and LLD (default clang-17 / ld.lld-17)")
+    compiler = find_clang(clang)
+    linker = llvm_tool("ld.lld", compiler)
     runtime = build_runtime(compiler)
     dest = OUT / "elf" / source.stem
     dest.mkdir(parents=True, exist_ok=True)
@@ -289,7 +287,7 @@ def main():
     build.add_argument("--timeout", type=positive, default=1800)
     compile_cmd = sub.add_parser("compile")
     compile_cmd.add_argument("source", type=Path)
-    compile_cmd.add_argument("--clang", default="clang-17")
+    compile_cmd.add_argument("--clang", default=None)
     run = sub.add_parser("run", prog="coral-sim")
     run.add_argument("elf", type=Path)
     run.add_argument("--trace", action="store_true")
@@ -298,10 +296,10 @@ def main():
     run.add_argument('--check-add-u32', action='store_true', help='独立检查 a+b=c，需要读取这三个数组')
     run.add_argument('--limit', type=positive, default=32, help='终端最多显示的数组元素数；校验仍覆盖全部元素')
     demo = sub.add_parser('demo', help='编译并演示 RVV 输入、输出和校验')
-    demo.add_argument('--clang', default='clang-17')
+    demo.add_argument('--clang', default=None)
     demo.add_argument('--trace', action='store_true')
     test = sub.add_parser("test")
-    test.add_argument("--clang", default="clang-17")
+    test.add_argument("--clang", default=None)
     for cmd in (run, test, demo):
         cmd.add_argument("--timeout", type=positive, default=30)
         cmd.add_argument("--cycles", type=positive, default=2000000)

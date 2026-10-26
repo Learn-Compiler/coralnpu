@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Check target UART stdout bytes independently from status and ELF symbols."""
 import argparse
-import os
 import datetime as dt
 import json
 from pathlib import Path
@@ -13,7 +12,7 @@ from zoneinfo import ZoneInfo
 import coral_main as coral
 
 base = coral.BASE
-CLANG = os.environ.get('CORAL_SIM_CLANG', 'clang-17')
+CLANG = coral.find_clang()
 dest = coral.OUT / 'console-validation'
 dest.mkdir(parents=True, exist_ok=True)
 hello = b'Hello, world!\n7 + 5 = 12\nhex = 0x0000000c\n'

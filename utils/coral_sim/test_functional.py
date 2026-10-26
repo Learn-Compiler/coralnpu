@@ -11,8 +11,7 @@ from zoneinfo import ZoneInfo
 from paths import BASE, OUT
 import coral_main as coral
 import shutil
-import os
-CLANG = os.environ.get("CORAL_SIM_CLANG", "clang-17")
+CLANG = coral.find_clang()
 DEST = OUT / 'functional-validation'
 DEST.mkdir(parents=True, exist_ok=True)
 records = []

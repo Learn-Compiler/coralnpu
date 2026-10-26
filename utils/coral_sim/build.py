@@ -6,8 +6,9 @@ from pathlib import Path
 import shutil
 import sys
 import tempfile
-from paths import BASE, ROOT, OUT, llvm_tool
+from paths import BASE, ROOT, OUT, llvm_tool, find_clang
 from coral_main import execute, require
+from bootstrap import find_bazel, download_bazel
 
 
 def positive(value):
@@ -32,26 +33,53 @@ def install(source, destination):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--target', choices=('iss', 'rtl', 'all'), default='iss')
+    parser.add_argument('--check', action='store_true', help='check all required local tools without building/downloading')
+    parser.add_argument('--offline', action='store_true', help='do not bootstrap a missing Bazel executable')
     parser.add_argument('--test', action='store_true', help='compile fixtures and run regressions')
     parser.add_argument('--timeout', type=positive, default=1800, help='deadline in seconds for each Bazel build')
     parser.add_argument('--jobs', type=positive, default=4)
     parser.add_argument('--make-jobs', type=positive, default=8)
     parser.add_argument('--bazel', default=os.environ.get('BAZEL'))
-    parser.add_argument('--clang', default=os.environ.get('CORAL_SIM_CLANG', 'clang-17'))
+    parser.add_argument('--clang', default=None, help='Clang executable (default: auto-detect from PATH)')
     parser.add_argument('--java', type=Path, help='path to a Java 11+ executable')
     parser.add_argument('--output-base', type=Path)
     parser.add_argument('--distdir', type=Path)
     parser.add_argument('--zlib-repository', type=Path, help='optional existing Bazel net_zlib override')
     args = parser.parse_args()
     tools = ROOT.parent / '.tools'
-    version = (ROOT / '.bazelversion').read_text().strip()
-    bazel = args.bazel or shutil.which('bazelisk') or shutil.which('bazel')
+    targets = ('iss', 'rtl') if args.target == 'all' else (args.target,)
+    missing = []
+    selected_tools = {}
+    compiler = None
+    if args.test or 'iss' in targets:
+        try:
+            compiler = find_clang(args.clang)
+            print('Clang: ' + compiler, flush=True)
+            os.environ['CORAL_SIM_CLANG'] = compiler
+            for name in ('clang++', 'ld.lld', 'llvm-ar', *(['llvm-objcopy'] if args.test else [])):
+                try:
+                    selected_tools[name] = llvm_tool(name, compiler)
+                    print(name + ': ' + selected_tools[name], flush=True)
+                except RuntimeError as error:
+                    missing.append(str(error))
+        except RuntimeError as error:
+            missing.append(str(error))
+    for name in ('gcc', 'g++', 'make'):
+        if not shutil.which(name):
+            missing.append(name + ' not found in PATH')
+    bazel = find_bazel(args.bazel)
+    if missing:
+        raise RuntimeError('missing build dependencies:\n  - ' + '\n  - '.join(missing) +
+            '\nUbuntu/Debian: install build-essential, clang-XX, lld-XX and llvm-XX (matching your Clang).')
+    if args.check:
+        print('Bazel: ' + (bazel or 'not installed; build will download the pinned version automatically'))
+        print('Local tool checks passed. Java is located/provisioned by Bazel when needed.')
+        return 0
     if not bazel:
-        local = tools / ('bazel-' + version + '-linux-x86_64')
-        if local.is_file():
-            bazel = str(local)
-    if not bazel:
-        raise RuntimeError(f'install Bazelisk or Bazel {version}, or pass --bazel /path/to/bazel')
+        if args.offline:
+            raise RuntimeError('Bazel missing in offline mode; pass --bazel /path/to/bazel')
+        bazel = download_bazel()
+    print('Bazel: ' + bazel, flush=True)
     output_base = args.output_base
     bazel_out = ROOT / 'bazel-out'
     if output_base is None and bazel_out.is_symlink() and bazel_out.exists():
@@ -78,20 +106,13 @@ def main():
     if zlib:
         common += ['--override_repository=+coralnpu_deps_ext+net_zlib=' + str(zlib.resolve())]
     OUT.mkdir(parents=True, exist_ok=True)
-    targets = ('iss', 'rtl') if args.target == 'all' else (args.target,)
-    if args.test or 'iss' in targets:
-        compiler = shutil.which(args.clang)
-        if not compiler:
-            raise RuntimeError('compiler not found: ' + args.clang + '; pass --clang clang-XX')
-        os.environ['CORAL_SIM_CLANG'] = compiler
     for target in targets:
         flags = common + ['--jobs=' + str(min(args.jobs, 2) if target == 'rtl' else args.jobs)]
         if target == 'iss':
             shim = OUT / 'host-tools'
             shim.mkdir(exist_ok=True)
-            for name, path in {'clang': compiler,
-                               'clang++': str(Path(compiler).with_name(Path(compiler).name.replace('clang', 'clang++'))),
-                               'ld.lld': llvm_tool('ld.lld', compiler), 'llvm-ar': llvm_tool('llvm-ar', compiler)}.items():
+            for name, path in {'clang': compiler, **{name: selected_tools[name]
+                               for name in ('clang++', 'ld.lld', 'llvm-ar')}}.items():
                 link = shim / name
                 link.unlink(missing_ok=True)
                 link.symlink_to(path)
@@ -127,6 +148,8 @@ def main():
         link.unlink(missing_ok=True)
         link.symlink_to(BASE / name)
     if args.test:
+        require(execute([sys.executable, str(BASE / 'test_toolchain.py')], 30,
+                        OUT / 'logs/test-toolchain.log', ROOT, live=True))
         if 'iss' in targets:
             require(execute([sys.executable, str(BASE / 'test_functional.py')], 300,
                             OUT / 'logs/test-iss.log', ROOT, live=True))

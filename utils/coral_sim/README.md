@@ -17,9 +17,22 @@
 ./build-sim.sh --target rtl
 ```
 
-依赖：Linux、Python 3.9+（含 zoneinfo/tzdata）、GCC/G++、make、Clang/LLD/LLVM tools 17 或更新版本、Java 11+、Bazel（版本见根目录 `.bazelversion`，当前为 9.1.0）或 Bazelisk。RTL 还需要仓库构建环境中的 autoconf、bison/flex、libelf、liblz4、libmpfr 等依赖；完整基础环境参考 `../coralnpu.dockerfile`。首次构建需要下载仓库固定版本的依赖，耗时取决于机器与网络。无需提前编译 LLVM 项目或安装 RISC-V GCC。
+依赖：Linux、Python 3.9+（含 zoneinfo/tzdata）、GCC/G++、make、Clang/LLD/LLVM tools 17 或更新版本、Java 11+、Bazel（版本见根目录 `.bazelversion`，当前为 9.1.0）或 Bazelisk；没有安装时脚本会在本地输出目录下载固定版本 Bazel，不需要 sudo。RTL 还需要仓库构建环境中的 autoconf、bison/flex、libelf、liblz4、libmpfr 等依赖；完整基础环境参考 `../coralnpu.dockerfile`。首次构建需要下载仓库固定版本的依赖，耗时取决于机器与网络。无需提前编译 LLVM 项目或安装 RISC-V GCC。
 
-Bazel 查找顺序：`--bazel` / `BAZEL` → PATH 中的 bazelisk/bazel → 仓库同级 `.tools/bazel-<版本>-linux-x86_64`。Clang 默认 `clang-17`；可以传入 `--clang clang-19`。LLD、llvm-ar、llvm-objcopy 优先寻找与所选 Clang 同版本的工具，其次寻找 PATH 中的无版本名称和 17 版本。Java 优先使用 `--java` 或 PATH，然后查找已有缓存中的 JDK；必要时由 Bazel 的 `java-home` 查询定位。
+Bazel 查找顺序：`--bazel` / `BAZEL` → PATH 中的 bazelisk/bazel → `~/.local/bin` → 仓库同级 `.tools` → `out/coral-sim/tools`。显式指定的路径不存在时会立即报错。没有找到工具时，Linux x86_64/arm64 会自动从 `releases.bazel.build` 下载 `.bazelversion` 固定的二进制，并比对官方 SHA256 后原子安装到输出目录；不修改系统 PATH。下载前打印 180 秒截止时间，失败文件不会保留。代理环境可设置 `HTTPS_PROXY`；也可以使用已有工具的 `--bazel` 参数。
+
+Clang 优先使用 `--clang` / `CORAL_SIM_CLANG`，其次查找 PATH 中的 `clang`，再查找版本号最高的 `clang-XX`（17 起）。已有 Clang 21 时可直接执行 `./build-sim.sh`。clang++、LLD、llvm-ar、llvm-objcopy 会跟随 Clang 的真实安装目录（例如 `/usr/lib/llvm-21/bin`）查找，再查找同版本名称及 PATH 中的默认工具。脚本在下载/构建前一次性检查 Clang 配套工具、gcc、g++、make，并列出缺失项。它不会自动用 sudo 安装系统软件。
+
+Java 优先使用 `--java` 或 PATH，再查找已有缓存中的 JDK；必要时通过 Bazel 的 `java-home` 定位其自带 Java，不要求机器预先有 `java` 命令。
+
+```bash
+# 只检查依赖，不下载、不构建。
+./build-sim.sh --check --test
+
+# 禁止自动下载缺失的 Bazel（仓库依赖的下载仍由 Bazel 管理）。
+./build-sim.sh --offline --bazel /path/to/bazel
+```
+
 
 构建脚本会复用当前工作区 `bazel-out` 对应的输出缓存；若仓库同级存在 `.tools/bazel-cache`、`distfiles`、`system-zlib`，也会复用。新检出没有这些目录时使用 Bazel 默认缓存和仓库原有依赖定义。`system-zlib` 是本机旧构建环境的可选依赖替代，并非提交的第三方源码；本机验证结果应结合生成的构建命令查看。
 
@@ -97,6 +110,8 @@ Coral 模式拒绝 RV64 和带压缩 C 标志的 ELF；未知/非法指令、异
 experiments/functional/          # coral_iss.cc、Bazel target：功能模型宿主
 utils/coral_sim/
   build.sh, build.py             # 根目录 build-sim.sh 调用的构建实现
+  bootstrap.py                  # 固定版本 Bazel 下载与 SHA256 校验
+  test_toolchain.py             # 多版本 Clang / 配套工具查找回归
   coral-sim, functional.py       # ELF 功能仿真 / 可选 Linux QEMU 分派
   coral-rtl-sim, coral_main.py   # RTL 运行与 C 编译助手
   feedback.py                   # RTL 内存读回、数组检查、Markdown 报告
@@ -109,6 +124,7 @@ utils/coral_sim/
 out/coral-sim/                   # 全部忽略提交
   bin/                          # 可执行文件与命令入口
   host-tools/                   # 仅构建使用的 Clang/Java 工具链接
+  tools/                        # 自动下载的 Bazel，无需加入 PATH
   build/runtime/                # 目标运行库缓存
   elf/                          # ELF、map、布局和编译记录
   logs/                         # 构建、测试日志及命令 JSON
