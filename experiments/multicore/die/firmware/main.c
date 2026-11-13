@@ -4,6 +4,7 @@
 void control_main(void) {
   const volatile BootConfig *cfg=(const volatile BootConfig *)(uintptr_t)BOOT_CONFIG;
   const unsigned n=cfg->elements,rounds=cfg->rounds,mode=cfg->mode;
+  if(cfg->scenario>=5)queued_main(cfg->scenario,n,mode,cfg->wait_cycles);
   if(cfg->scenario) {
     if(read32(SYSTEM_BASE+SYS_ID)!=0x434f5241 || cfg->scenario>4 ||
        cfg->rows<1 || cfg->rows>8 || mode || cfg->wait_cycles==0)die_finish(DIE_BAD_CONFIG);

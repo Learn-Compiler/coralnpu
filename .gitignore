@@ -29,3 +29,6 @@ toolchain/build_scripts/*.tar.*
 uvm_regression_*/
 uvm_regression_*.zip
 dispatch.log
+
+# Local simulator builds and validation artifacts
+/out/

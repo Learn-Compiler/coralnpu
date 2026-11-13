@@ -1,10 +1,12 @@
-# 一个 RISC-V 控制 CPU + 四个 RVV Coral
+# 一个 RISC-V 控制 CPU + 四个 RVV / Zvt Coral
+
+本开发分支已新增独立 AXI DMA、控制核上的通用任务/事件队列，以及可选四核 Zvt RTL。接口、构建和验证见 [DMA 与事件队列说明](docs/dma_events_zvt.md)。原有 RVV 演示继续保留。
 
 这个实验集成真实 PicoRV32 RV32IM 控制核、四个启用 RVV 的 Coral CoreAxi、64 KiB 控制核 RAM、16 KiB 共享 SRAM，以及两级 AXI 仲裁。CPU 执行固件完成 kernel 加载、分片、启动、同步和异常检查；C++ 测试台只装入控制 CPU 启动镜像并独立读取结果。
 
-Coral 当前为 VLEN=128 bit，设备代码使用 e32,m1 的整数 RVV 指令。算子包括向量加法、GEMM+bias+ReLU、3×3 卷积+bias+ReLU。使用现有 Clang/LLD 与 `riscv_vector.h`，没有为本实验修改 LLVM；没有启用 Zvt 矩阵引擎。
+Coral 当前为 VLEN=128 bit，设备代码使用 e32,m1 的整数 RVV 指令。算子包括向量加法、GEMM+bias+ReLU、3×3 卷积+bias+ReLU。使用现有 Clang/LLD 与 `riscv_vector.h`，基础 RVV 演示不要求修改 LLVM；可选 Zvt 路径使用配套补丁 LLVM 和 VME RTL。
 
-这是功能 RTL 原型。控制 CPU 是轻量 RV32IM 核，尚无完整模型推理、DMA/HBM、缓存一致性、3D 堆叠、多卡或物理设计签核。
+这是功能 RTL 原型。控制 CPU 是轻量 RV32IM 核，尚无完整模型推理、HBM、缓存一致性、3D 堆叠、多卡或物理设计签核。
 
 ## 建模分支的统一入口
 
@@ -63,7 +65,7 @@ python3 experiments/multicore/tools/die/check.py --jobs 3
 
 GEMM 沿输出列向量化，卷积沿输出通道向量化，使用向量乘加和向量 ReLU。卷积先把共享权重打包到每核私有 DTCM，再做连续向量加载。LLVM 可以将部分 `vmacc.vx` 合法改写为 `vmadd.vx`，硬件派发计数同时识别两者。
 
-提交顺序与核组当前在固件中手写。没有通用图调度器、任务队列或自动资源分配。存在数据依赖的算子需要等待前驱；原加法示例 `C=A+B`、`D=C+B` 明确串行执行。
+提交顺序与核组当前在固件中手写。这个旧演示不经过新增任务队列。新增 DMA/事件队列用例见上述说明，尚无通用模型图优化器。存在数据依赖的算子需要等待前驱；原加法示例 `C=A+B`、`D=C+B` 明确串行执行。
 
 ## 核内打印与正确性
 

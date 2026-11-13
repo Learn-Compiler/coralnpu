@@ -7,7 +7,13 @@
 #include <string>
 #include <vector>
 #include "../device/complex_abi.h"
+#ifdef NCORAL_VME
+#include "VCoralDieVme.h"
+using DieModel = VCoralDieVme;
+#else
 #include "VCoralDie.h"
+using DieModel = VCoralDie;
+#endif
 #include "verilated.h"
 
 // The testbench has no Coral host AXI driver, RAM BFM, or kernel dispatch path.
@@ -17,7 +23,7 @@ class DieBench {
   struct Event { uint32_t cycle,op,core,event,detail; };
   std::vector<Event> events;
   VerilatedContext context;
-  VCoralDie model{&context};
+  DieModel model{&context};
   uint64_t cycles=0,started_at=0,deadline;
   bool running=false;
   DieBench(uint64_t limit,unsigned stalls):deadline(limit) {
@@ -99,7 +105,7 @@ int main(int argc,char** argv) {
       if(name=="--elements" && n<=128)count=unsigned(n);
       else if(name=="--rounds" && n>=1 && n<=2)rounds=unsigned(n);
       else if(name=="--mode" && n<=3)mode=unsigned(n);
-      else if(name=="--scenario" && n<=4)scenario=unsigned(n);
+      else if(name=="--scenario" && n<=6)scenario=unsigned(n);
       else if(name=="--rows" && n>=1 && n<=8)rows=unsigned(n);
       else if(name=="--wait-cycles" && n>=1 && n<=1000000)wait_cycles=unsigned(n);
       else if(name=="--stall-period" && n<=1000)stalls=unsigned(n);
@@ -116,8 +122,59 @@ int main(int argc,char** argv) {
       std::cerr<<"controller reported failure code=0x"<<std::hex<<tb.model.io_finish
                <<" coral_fault=0x"<<unsigned(tb.model.io_coralFault)
                <<" trap_mask=0x"<<unsigned(tb.model.io_trapMask)
-               <<" started=0x"<<unsigned(tb.model.io_started)<<std::dec<<'\n';
+               <<" started=0x"<<unsigned(tb.model.io_started)<<" phase=0x"<<tb.model.io_phase<<" dma_error="<<unsigned(tb.model.io_dmaError)<<" dma_completed="<<tb.model.io_dmaCompleted<<" queue_debug="<<tb.model.io_checksum<<std::dec<<'\n';
       return 1;
+    }
+    if(scenario>=5) {
+      if(tb.model.io_started!=15 || tb.model.io_coralWfi!=15 || tb.model.io_coralFault ||
+         tb.model.io_busError || tb.model.io_trapMask || tb.model.io_decodeErrors || tb.model.io_launches!=4)
+        throw std::runtime_error("incorrect queued execution completion state");
+      uint32_t checksum=0;
+      if(scenario==6) {
+#ifndef NCORAL_VME
+        throw std::runtime_error("Zvt scenario requires the VME RTL target");
+#endif
+        for(unsigned core=0;core<4;++core) {
+          const uint32_t issued[]={tb.model.io_zvtMacIssued_0,tb.model.io_zvtMacIssued_1,tb.model.io_zvtMacIssued_2,tb.model.io_zvtMacIssued_3};
+          if(issued[core]!=4)throw std::runtime_error("missing/excess Zvt matrix dispatch");
+          for(unsigned i=0;i<16;++i)for(unsigned j=0;j<16;++j) {
+            int64_t expected=0;
+            for(unsigned k=0;k<4;++k) {
+              int64_t a=int((core*3+16*k+i)%13)-6,b=int((core*2+16*k+j)%11)-5;
+              expected+=a*b;
+            }
+            uint32_t value=tb.InspectWord(0x1800+1024*core+4*(16*i+j));
+            if(value!=uint32_t(expected))throw std::runtime_error("Zvt output differs from independent signed INT64 reference");
+            checksum+=value;
+          }
+        }
+        if(tb.InspectWord(0x17fc)!=0xa5a5a5a5 || tb.InspectWord(0x2800)!=0x5a5a5a5a)
+          throw std::runtime_error("Zvt DMA output boundary guard overwritten");
+      } else {
+        for(unsigned i=0;i<count;++i) {
+          if(tb.InspectWord(4*i)!=3*i+1 || tb.InspectWord(0x400+4*i)!=7*i+2 || tb.InspectWord(0x800+4*i)!=10*i+3)
+            throw std::runtime_error("queued DMA/RVV output or input mismatch");
+          checksum+=10*i+3;
+        }
+        if(tb.InspectWord(0x7fc)!=0xa5a5a5a5 || tb.InspectWord(0x800+4*count)!=0x5a5a5a5a)
+          throw std::runtime_error("DMA overwrote tail/prefix guard");
+      }
+      unsigned nonempty=scenario==6?4:std::min(count,4u);
+      unsigned tasks=4+3*nonempty,copies=3*nonempty;
+      if(tb.InspectWord(0x3e00)!=tasks || tb.InspectWord(0x3e04)!=tasks || tb.InspectWord(0x3e08)!=0 ||
+         tb.InspectWord(0x3e0c)!=copies || tb.model.io_dmaCompleted!=copies || tb.model.io_dmaError ||
+         tb.model.io_dmaRejected!=(mode==3?1u:0u) || tb.model.io_checksum!=checksum)
+        {
+          std::cerr<<"queue submitted="<<tb.InspectWord(0x3e00)<<" completed="<<tb.InspectWord(0x3e04)
+            <<" failed="<<tb.InspectWord(0x3e08)<<" DMA="<<tb.model.io_dmaCompleted
+            <<" rejected="<<tb.model.io_dmaRejected<<" error="<<unsigned(tb.model.io_dmaError)<<std::endl;
+          throw std::runtime_error("queue/DMA completion counters mismatch");
+        }
+      std::cout<<"{\"result\":\"PASS\",\"scenario\":"<<scenario<<",\"tasks\":"<<tasks
+        <<",\"dma_completed\":"<<copies<<",\"zvt_per_core\":"<<(scenario==6?4:0)
+        <<",\"elements\":"<<count<<",\"stall_period\":"<<stalls<<",\"negative_dma_case\":"<<mode
+        <<",\"cpu_cycles\":"<<tb.cycles-tb.started_at<<",\"checksum\":"<<checksum<<"}\n";
+      tb.model.final();return 0;
     }
     if(tb.model.io_started!=15 || tb.model.io_coralWfi!=15 || tb.model.io_coralFault ||
        tb.model.io_busError || tb.model.io_trapMask || tb.model.io_decodeErrors!=(mode==1?1u:0u) ||

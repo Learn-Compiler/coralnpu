@@ -800,7 +800,8 @@ class RetirementBuffer(p: Parameters, mini: Boolean = false) extends Module {
           debug.inst(i).bits.tileWrites.get := 0.U.asTypeOf(debug.inst(i).bits.tileWrites.get)
         }
         val inst              = instBuffer.io.dataOut(i).inst
-        val isMsetWritesMtype = RvvCompressedInstruction.isMsetWritesMtype(inst)
+        // The mini ROB has a zero-width instruction field; no mtype trace is available.
+        val isMsetWritesMtype = if (mini) false.B else RvvCompressedInstruction.isMsetWritesMtype(inst)
         debug.inst(i).bits.mtype.get.valid := valid && !resultUpdate(
           i
         ).bits.trap && isMsetWritesMtype

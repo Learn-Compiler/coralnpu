@@ -12,7 +12,7 @@ import java.nio.file.{Files, Paths}
   * No assumption that different cores use different AXI IDs.
   */
 class SharedAxiArbiter(addrBits: Int, dataBits: Int, idBits: Int, numCores: Int) extends Module {
-  require(Set(2, 4).contains(numCores))
+  require(numCores >= 2 && numCores <= 8)
   private val ownerBits = log2Ceil(numCores)
   val io = IO(new Bundle {
     val cores = Vec(numCores, Flipped(new AxiMasterIO(addrBits, dataBits, idBits)))
@@ -65,17 +65,19 @@ class SharedAxiArbiter(addrBits: Int, dataBits: Int, idBits: Int, numCores: Int)
 }
 
 /** Unmodified Coral AXI cores; host ports remain independent local apertures. */
-class CoralCluster(numCores: Int, enableRvv: Boolean, observeRvv: Boolean = false) extends RawModule {
+class CoralCluster(numCores: Int, enableRvv: Boolean, observeRvv: Boolean = false, enableVme: Boolean = false) extends RawModule {
   require(Set(2, 4).contains(numCores))
   require(!observeRvv || enableRvv)
+  require(!enableVme || enableRvv)
   override val desiredName = (if (numCores == 4) "QuadCoral" else "DualCoral") +
-    (if (enableRvv) "Rvv" else "")
+    (if (enableVme) "Vme" else if (enableRvv) "Rvv" else "")
   val p = new Parameters(MemoryRegions.default)
   p.fetchDataBits = 128
   p.lsuDataBits = 128
   p.enableFloat = true
   p.enableZfbfmin = true
   p.enableRvv = enableRvv
+  p.enableVme = enableVme
   p.enableVectorBf16 = enableRvv
   p.rawExposeDebugPorts = observeRvv // Observe dispatch without enabling full ROB verification.
   val io = IO(new Bundle {
@@ -87,13 +89,14 @@ class CoralCluster(numCores: Int, enableRvv: Boolean, observeRvv: Boolean = fals
     val fault = Output(Vec(numCores, Bool()))
     val wfi = Output(Vec(numCores, Bool()))
     val rvvMacIssued = Output(Vec(numCores, UInt(32.W)))
+    val zvtMacIssued = Output(Vec(numCores, UInt(32.W)))
   })
   val arbiter = withClockAndReset(io.aclk, (!io.aresetn.asBool).asAsyncReset) {
     Module(new SharedAxiArbiter(p.axi2AddrBits, p.axi2DataBits, p.axi2IdBits, numCores))
   }
   io.memory <> arbiter.io.memory
   for (i <- 0 until numCores) {
-    val core = Module(new CoreAxi(p, if (enableRvv) "ClusterRvvCore" else "ClusterScalarCore"))
+    val core = Module(new CoreAxi(p, if (enableVme) "ClusterVmeCore" else if (enableRvv) "ClusterRvvCore" else "ClusterScalarCore"))
     core.suggestName(s"coral_$i")
     core.io.aclk := io.aclk
     core.io.aresetn := io.aresetn
@@ -113,6 +116,7 @@ class CoralCluster(numCores: Int, enableRvv: Boolean, observeRvv: Boolean = fals
     if (observeRvv) {
       withClockAndReset(io.aclk, (!io.aresetn.asBool).asAsyncReset) {
         val count = RegInit(0.U(32.W))
+        val matrixCount = RegInit(0.U(32.W))
         // vmacc.vx / vmadd.vx: OP-V=0x57, funct6=101101/101001, funct3=110.
         // Count accepted dispatches, not fetches or architectural retirements.
         val macs = core.io.debug.get.dispatch.map { lane =>
@@ -121,9 +125,14 @@ class CoralCluster(numCores: Int, enableRvv: Boolean, observeRvv: Boolean = fals
             lane.instInst(14,12) === "b110".U
         }
         when(!core.io.wfi && !core.io.halted) { count := count + PopCount(macs) }
+        val matrix = core.io.debug.get.dispatch.map { lane =>
+          lane.instFire && lane.instInst(6,0) === "h77".U && lane.instInst(31,26) === "b111100".U
+        }
+        when(!core.io.wfi && !core.io.halted) { matrixCount := matrixCount + PopCount(matrix) }
+        io.zvtMacIssued(i) := matrixCount
         io.rvvMacIssued(i) := count
       }
-    } else { io.rvvMacIssued(i) := 0.U }
+    } else { io.rvvMacIssued(i) := 0.U; io.zvtMacIssued(i) := 0.U }
   }
 }
 

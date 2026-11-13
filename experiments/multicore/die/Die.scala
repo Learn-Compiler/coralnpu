@@ -184,6 +184,15 @@ class DieControlFabric extends Module {
     val bootIndex = Input(UInt(14.W))
     val bootData = Input(UInt(32.W))
     val ports = Vec(5, new AxiMasterIO(32, 128, 6))
+    val dmaCommand = Valid(new DmaCommand)
+    val dmaClear = Output(Bool())
+    val dmaBusy = Input(Bool())
+    val dmaDone = Input(Bool())
+    val dmaError = Input(UInt(3.W))
+    val dmaTag = Input(UInt(32.W))
+    val dmaProgress = Input(UInt(32.W))
+    val dmaCompleted = Input(UInt(32.W))
+    val dmaRejected = Input(UInt(32.W))
     val coralWfi = Input(UInt(4.W))
     val coralFault = Input(UInt(4.W))
     val finish = Output(UInt(32.W))
@@ -195,9 +204,16 @@ class DieControlFabric extends Module {
     val launches = Output(UInt(32.W))
     val trapMask = Output(UInt(4.W))
   })
-  val boot = SyncReadMem(16384, Vec(4, UInt(8.W)))
-  when(io.bootEn && !io.run) {
-    boot.write(io.bootIndex, io.bootData.asTypeOf(Vec(4, UInt(8.W))))
+  val dmaConfig = RegInit(0.U.asTypeOf(new DmaCommand))
+  io.dmaCommand.valid := false.B
+  io.dmaCommand.bits := dmaConfig
+  io.dmaClear := false.B
+  // Separate byte banks keep CPU SB/SH enables explicit even with a second,
+  // full-word boot-loading port. Mixed masked/unmasked memory ports must not
+  // silently promote a byte store into an entire-word store.
+  val boot = Seq.fill(4)(SyncReadMem(16384, UInt(8.W)))
+  for (i <- 0 until 4) {
+    when(io.bootEn && !io.run) { boot(i).write(io.bootIndex, io.bootData(8*i+7, 8*i)) }
   }
   val idle :: bootLoad :: bootCapture :: issueRead :: readResponse :: issueWrite :: writeResponse :: response :: Nil = Enum(8)
   val state = RegInit(idle)
@@ -228,7 +244,7 @@ class DieControlFabric extends Module {
   io.decodeErrors := decodeErrors
   io.launches := launches
   io.trapMask := trapMask
-  val bootRead = boot.read(address(15, 2), state === bootLoad)
+  val bootRead = VecInit(boot.map(_.read(address(15, 2), state === bootLoad))).asUInt
   when(state === bootLoad) { state := bootCapture }
   when(state === bootCapture) {
     rdata := bootRead.asUInt
@@ -251,7 +267,9 @@ class DieControlFabric extends Module {
     rdata := 0.U
     when(io.cpuAddr < "h10000".U) {
       when(io.cpuWstrb.orR) {
-        boot.write(io.cpuAddr(15, 2), io.cpuWdata.asTypeOf(Vec(4, UInt(8.W))), io.cpuWstrb.asBools)
+        for (i <- 0 until 4) {
+          when(io.cpuWstrb(i)) { boot(i).write(io.cpuAddr(15, 2), io.cpuWdata(8*i+7, 8*i)) }
+        }
         state := response
       }.otherwise { state := bootLoad }
     }.elsewhen(io.cpuAddr >= "h50000000".U && io.cpuAddr < "h50000030".U && io.cpuAddr(1, 0) === 0.U) {
@@ -269,6 +287,25 @@ class DieControlFabric extends Module {
         when(io.cpuAddr(7, 0) === 0x1c.U) { phase := io.cpuWdata }
         when(io.cpuAddr(7, 0) === 0x20.U) { checksum := io.cpuWdata }
         when(io.cpuAddr(7, 0) === 0x2c.U) { trapMask := io.cpuWdata(3, 0) }
+      }
+    }.elsewhen(io.cpuAddr >= "h50000100".U && io.cpuAddr < "h50000130".U && io.cpuAddr(1,0) === 0.U) {
+      state := response
+      rdata := MuxLookup(io.cpuAddr(7,0), 0.U)(Seq(
+        0x04.U -> Cat(0.U(29.W), io.dmaError.orR, io.dmaDone, io.dmaBusy),
+        0x08.U -> dmaConfig.src, 0x0c.U -> dmaConfig.dst, 0x10.U -> dmaConfig.bytes,
+        0x14.U -> dmaConfig.tag, 0x18.U -> io.dmaTag, 0x1c.U -> io.dmaError,
+        0x20.U -> io.dmaProgress, 0x24.U -> io.dmaCompleted, 0x28.U -> io.dmaRejected
+      ))
+      when(io.cpuWstrb.orR) {
+        when(io.cpuWstrb =/= 15.U) { busError := true.B }.otherwise {
+          switch(io.cpuAddr(7,0)) {
+            is(0x00.U) { io.dmaCommand.valid := io.cpuWdata(0); io.dmaClear := io.cpuWdata(1) }
+            is(0x08.U) { dmaConfig.src := io.cpuWdata }
+            is(0x0c.U) { dmaConfig.dst := io.cpuWdata }
+            is(0x10.U) { dmaConfig.bytes := io.cpuWdata }
+            is(0x14.U) { dmaConfig.tag := io.cpuWdata }
+          }
+        }
       }
     }.elsewhen((coralWindow && localMapped) ||
       (io.cpuAddr >= "h20000000".U && io.cpuAddr < "h20004000".U)) {
@@ -323,7 +360,8 @@ class DieControlFabric extends Module {
   * Boot loading is only possible while the controller is held in reset.
   * No external AXI host ports or C++ shared-memory target are used by this top.
   */
-class CoralDie extends RawModule {
+class CoralDie(enableVme: Boolean = false) extends RawModule {
+  override val desiredName = if (enableVme) "CoralDieVme" else "CoralDie"
   val io = IO(new Bundle {
     val aclk = Input(Clock())
     val aresetn = Input(AsyncReset())
@@ -354,6 +392,10 @@ class CoralDie extends RawModule {
     val traceData = Output(UInt(32.W))
     val traceCycle = Output(UInt(32.W))
     val rvvMacIssued = Output(Vec(4, UInt(32.W)))
+    val zvtMacIssued = Output(Vec(4, UInt(32.W)))
+    val dmaCompleted = Output(UInt(32.W))
+    val dmaRejected = Output(UInt(32.W))
+    val dmaError = Output(UInt(3.W))
   })
   withClockAndReset(io.aclk, (!io.aresetn.asBool).asAsyncReset) {
     val cpu = Module(new PicoRV32)
@@ -364,8 +406,9 @@ class CoralDie extends RawModule {
     cpu.io.pcpi_wait := false.B
     cpu.io.pcpi_ready := false.B
     cpu.io.irq := 0.U
-    val cluster = Module(new CoralCluster(4, true, observeRvv = true))
+    val cluster = Module(new CoralCluster(4, true, observeRvv = true, enableVme = enableVme))
     io.rvvMacIssued := cluster.io.rvvMacIssued
+    io.zvtMacIssued := cluster.io.zvtMacIssued
     cluster.io.aclk := io.aclk
     cluster.io.aresetn := io.aresetn
     val fabric = Module(new DieControlFabric)
@@ -381,10 +424,29 @@ class CoralDie extends RawModule {
     fabric.io.bootData := io.bootData
     fabric.io.coralFault := cluster.io.fault.asUInt
     fabric.io.coralWfi := cluster.io.wfi.asUInt
-    for (i <- 0 until 4) { cluster.io.hosts(i) <> fabric.io.ports(i) }
-    val shared = Module(new SharedAxiArbiter(32, 128, 6, 2))
+    val dma = Module(new DieDma)
+    dma.io.command <> fabric.io.dmaCommand
+    dma.io.clear := fabric.io.dmaClear
+    fabric.io.dmaBusy := dma.io.busy
+    fabric.io.dmaDone := dma.io.done
+    fabric.io.dmaError := dma.io.error
+    fabric.io.dmaTag := dma.io.tag
+    fabric.io.dmaProgress := dma.io.progress
+    fabric.io.dmaCompleted := dma.io.completed
+    fabric.io.dmaRejected := dma.io.rejected
+    io.dmaCompleted := dma.io.completed
+    io.dmaRejected := dma.io.rejected
+    io.dmaError := dma.io.error
+    for (i <- 0 until 4) {
+      val host = Module(new SharedAxiArbiter(32, 128, 6, 2))
+      host.io.cores(0) <> fabric.io.ports(i)
+      host.io.cores(1) <> dma.io.ports(i)
+      cluster.io.hosts(i) <> host.io.memory
+    }
+    val shared = Module(new SharedAxiArbiter(32, 128, 6, 3))
     shared.io.cores(0) <> cluster.io.memory
     shared.io.cores(1) <> fabric.io.ports(4)
+    shared.io.cores(2) <> dma.io.ports(4)
     val ram = Module(new DieSram)
     ram.io.axi <> shared.io.memory
     ram.io.stallPeriod := io.stallPeriod
@@ -414,10 +476,12 @@ class CoralDie extends RawModule {
 
 object EmitDie extends App {
   val target = args.find(_.startsWith("--target-dir=")).map(_.split("=", 2)(1)).getOrElse(".")
-  val source = ChiselStage.emitSystemVerilog(new CoralDie, Array(), Array(
+  val vme = args.contains("--vme")
+  val name = if (vme) "CoralDieVme" else "CoralDie"
+  val source = ChiselStage.emitSystemVerilog(new CoralDie(vme), Array(), Array(
     "--lowering-options=disallowLocalVariables,locationInfoStyle=none", "-enable-layers=Verification"
   ))
   val separator = "// ----- 8< ----- FILE \"firrtl_black_box_resource_files.f\" ----- 8< -----"
   Files.createDirectories(Paths.get(target))
-  Files.write(Paths.get(target, "CoralDie.sv"), source.split(java.util.regex.Pattern.quote(separator))(0).getBytes("UTF-8"))
+  Files.write(Paths.get(target, name + ".sv"), source.split(java.util.regex.Pattern.quote(separator))(0).getBytes("UTF-8"))
 }

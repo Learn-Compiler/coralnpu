@@ -130,6 +130,8 @@ def bazel_build_command(target, jobs):
                f"--distdir={TOOLS / 'distfiles'}",
                "--noshow_progress", "--color=no", "--curses=no",
                f"//experiments/multicore:smoke_{target}"]
+    if os.environ.get("NCORAL_BAZEL_OUTPUT_USER_ROOT")=="default":
+        command=[arg for arg in command if not arg.startswith("--output_user_root=")]
     return command, dependencies
 
 

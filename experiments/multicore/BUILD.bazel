@@ -1,6 +1,6 @@
 load("//rules:chisel.bzl", "chisel_library", "chisel_cc_library")
-load("//hdl/chisel/src/coralnpu:flags.bzl", "CORE_MINI_AXI_VOPTS", "RVV_CORE_MINI_AXI_VOPTS")
-load("@rules_cc//cc:defs.bzl", "cc_binary")
+load("//hdl/chisel/src/coralnpu:flags.bzl", "CORE_MINI_AXI_VOPTS", "RVV_CORE_MINI_AXI_VOPTS", "VME_CORE_MINI_AXI_VOPTS")
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_test")
 load("//rules:verilog.bzl", "verilog_library")
 
 package(default_visibility = ["//visibility:public"])
@@ -80,7 +80,7 @@ cc_binary(
 
 chisel_library(
     name = "die",
-    srcs = ["die/Die.scala"],
+    srcs = ["die/Die.scala", "die/Dma.scala"],
     deps = [":cluster", "//hdl/chisel/src/bus:bus"],
 )
 
@@ -102,4 +102,25 @@ cc_binary(
     name = "smoke_die",
     srcs = ["die/smoke_die.cc", "die/complex_check.h", "die/profile_check.h", "device/complex_abi.h", "device/profile.h"],
     deps = [":single_die_cc", "//hdl/verilog:sram_backdoor"],
+)
+
+chisel_cc_library(
+    name = "single_die_vme",
+    chisel_lib = ":die",
+    emit_class = "mydie.cluster.EmitDie",
+    module_name = "CoralDieVme",
+    gen_flags = ["--vme"],
+    verilog_deps = [":picorv32_rtl"],
+    vopts = VME_CORE_MINI_AXI_VOPTS + ["-Wno-PINCONNECTEMPTY"],
+)
+cc_binary(
+    name = "smoke_die_vme",
+    srcs = ["die/smoke_die.cc", "die/complex_check.h", "die/profile_check.h", "device/complex_abi.h", "device/profile.h"],
+    defines = ["NCORAL_VME"],
+    deps = [":single_die_vme_cc", "//hdl/verilog:sram_backdoor"],
+)
+
+cc_test(
+    name = "queue_test",
+    srcs = ["die/queue_test.cc", "die/firmware/queue.c", "die/firmware/queue.h"],
 )

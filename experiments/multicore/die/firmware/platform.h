@@ -44,6 +44,7 @@ uint32_t coral_wait(uint32_t timeout_cycles);
 void coral_prepare_complex(unsigned rows,unsigned only_op);
 void coral_start_mask(unsigned mask);
 uint32_t coral_wait_mask(unsigned mask,uint32_t timeout_cycles);
+void queued_main(unsigned scenario,unsigned n,unsigned mode,uint32_t timeout);
 void complex_main(unsigned scenario,unsigned rows,uint32_t timeout_cycles);
 void die_finish(uint32_t code) __attribute__((noreturn));
 #endif

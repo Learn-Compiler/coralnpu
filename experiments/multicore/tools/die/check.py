@@ -19,8 +19,9 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--jobs',type=int,choices=range(1,5),default=1,
                         help='independent simulator processes; each keeps its own deadline/log')
+    parser.add_argument("--vme",action="store_true",help="Run the existing RVV suite on the VME-enabled die")
     args=parser.parse_args()
-    binary=UPSTREAM/'bazel-bin/experiments/multicore/smoke_die'
+    binary=UPSTREAM/('bazel-bin/experiments/multicore/smoke_die_vme' if args.vme else 'bazel-bin/experiments/multicore/smoke_die')
     boot=ROOT/'die/logs/firmware/controller.bin'
     if not binary.is_file() or not boot.is_file():
         raise SystemExit('Build first: python3 experiments/multicore/tools/die/demo_complex.py')

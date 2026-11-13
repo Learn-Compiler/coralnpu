@@ -17,15 +17,16 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--jobs", type=int, default=2)
     parser.add_argument("--timeout", type=int, default=1800, help="Bazel build phase deadline, in seconds")
+    parser.add_argument("--vme",action="store_true",help="Enable the existing Zvt matrix RTL on all four cores")
     args = parser.parse_args()
     if min(args.jobs, args.timeout) < 1:
         parser.error("jobs and timeout must be positive")
     output = ROOT / "die/logs/simulator"
     output.mkdir(parents=True, exist_ok=True)
     report = {"status": "STARTED", "started": timestamp(), "options": vars(args),
-              "target": "//experiments/multicore:smoke_die", "phases": [],
+              "target": "//experiments/multicore:smoke_die_vme" if args.vme else "//experiments/multicore:smoke_die", "phases": [],
               "model": {"control_cpu": "PicoRV32 RV32IM", "coral_cores": 4,
-                        "compute_backend": "RVV", "vlen_bits": 128, "vme_enabled": False}}
+                        "compute_backend": "RVV", "vlen_bits": 128, "vme_enabled": args.vme, "axi_dma": True}}
     try:
         source = UPSTREAM / "experiments/multicore"
         vendor = source / "die/vendor/picorv32"
@@ -34,23 +35,28 @@ def main():
             if hashlib.sha256((vendor / name).read_bytes()).hexdigest() != digest:
                 raise RuntimeError("control CPU source checksum mismatch: " + name)
         report["controller_source"] = manifest
-        command, dependencies = bazel_build_command("die", args.jobs)
+        command, dependencies = bazel_build_command("die_vme" if args.vme else "die", args.jobs)
         report.update(command=command, build_dependencies=dependencies)
         print("Command:", shlex.join(command), flush=True)
         phase = bounded(command, args.timeout, output / "build.log", UPSTREAM)
         report["phases"].append(phase)
         if phase["exit_code"]:
             raise RuntimeError("simulator build failed/timed out; see " + phase["log"])
-        binary = UPSTREAM / "bazel-bin/experiments/multicore/smoke_die"
+        binary = UPSTREAM / ("bazel-bin/experiments/multicore/smoke_die_vme" if args.vme else "bazel-bin/experiments/multicore/smoke_die")
         if not binary.is_file():
             raise RuntimeError("Bazel succeeded but simulator is missing: " + str(binary))
         report.update(status="PASS", simulator=str(binary),
                       simulator_sha256=hashlib.sha256(binary.read_bytes()).hexdigest())
-        inputs = ["BUILD.bazel", "Cluster.scala", "die/Die.scala", "die/smoke_die.cc",
+        inputs = ["BUILD.bazel", "Cluster.scala", "die/Die.scala", "die/Dma.scala", "die/smoke_die.cc",
                   "die/complex_check.h", "die/profile_check.h", "device/complex_abi.h", "device/profile.h",
                   "die/vendor/picorv32/picorv32.v"]
         report["integration_source_sha256"] = {
             name: hashlib.sha256((source / name).read_bytes()).hexdigest() for name in inputs}
+        report["core_source_sha256"] = {
+            "hdl/chisel/src/coralnpu/RetirementBuffer.scala": hashlib.sha256(
+                (UPSTREAM/"hdl/chisel/src/coralnpu/RetirementBuffer.scala").read_bytes()).hexdigest()}
+        generated=UPSTREAM/("bazel-out/k8-fastbuild/bin/experiments/multicore/CoralDieVme.sv" if args.vme else "bazel-out/k8-fastbuild/bin/experiments/multicore/CoralDie.sv")
+        if generated.is_file():report["generated_rtl_sha256"]=hashlib.sha256(generated.read_bytes()).hexdigest()
         print("Simulator:", binary, flush=True)
         print("Firmware is built separately with ncoral.py build-code.", flush=True)
     except Exception as error:

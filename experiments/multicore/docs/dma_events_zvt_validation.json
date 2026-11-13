@@ -1,0 +1,729 @@
+{
+  "schema": "ncoral.dma-events-zvt.validation.v1",
+  "base_commit": "180b1ca6efebfecc9610d023f50a58bb56b8ea6a",
+  "llvm_commit": "6cce5bca3b901ec32e250fb43e88eb0fe511af93",
+  "llvm_version": "24.0.0git with Coral Zvt patches",
+  "suites": [
+    {
+      "name": "DMA/event/Zvt pipeline",
+      "status": "PASS",
+      "finished": "2026-11-13T06:49:42.142548+00:00",
+      "simulator_sha256": "aca9e595d8eb5a68ed588b52cc9598c04de8c20b375cf8d8e0c1269c83b54e45",
+      "controller_sha256": "c6f5e658a7b648a6484d25dbe0bd0e10d2bc5b4c0ab31272ee9d44d19d1da450",
+      "cases": [
+        {
+          "name": "one",
+          "passed": true,
+          "simulation": {
+            "result": "PASS",
+            "scenario": 5,
+            "tasks": 7,
+            "dma_completed": 3,
+            "zvt_per_core": 0,
+            "elements": 1,
+            "stall_period": 0,
+            "negative_dma_case": 0,
+            "cpu_cycles": 181741,
+            "checksum": 3
+          }
+        },
+        {
+          "name": "empty_shards",
+          "passed": true,
+          "simulation": {
+            "result": "PASS",
+            "scenario": 5,
+            "tasks": 13,
+            "dma_completed": 9,
+            "zvt_per_core": 0,
+            "elements": 3,
+            "stall_period": 3,
+            "negative_dma_case": 0,
+            "cpu_cycles": 235652,
+            "checksum": 39
+          }
+        },
+        {
+          "name": "tail",
+          "passed": true,
+          "simulation": {
+            "result": "PASS",
+            "scenario": 5,
+            "tasks": 16,
+            "dma_completed": 12,
+            "zvt_per_core": 0,
+            "elements": 37,
+            "stall_period": 3,
+            "negative_dma_case": 0,
+            "cpu_cycles": 271544,
+            "checksum": 6771
+          }
+        },
+        {
+          "name": "full_backpressure",
+          "passed": true,
+          "simulation": {
+            "result": "PASS",
+            "scenario": 5,
+            "tasks": 16,
+            "dma_completed": 12,
+            "zvt_per_core": 0,
+            "elements": 128,
+            "stall_period": 5,
+            "negative_dma_case": 0,
+            "cpu_cycles": 283163,
+            "checksum": 81664
+          }
+        },
+        {
+          "name": "bad_dma_address",
+          "passed": true,
+          "simulation": {
+            "result": "PASS",
+            "scenario": 5,
+            "tasks": 16,
+            "dma_completed": 12,
+            "zvt_per_core": 0,
+            "elements": 37,
+            "stall_period": 3,
+            "negative_dma_case": 1,
+            "cpu_cycles": 271700,
+            "checksum": 6771
+          }
+        },
+        {
+          "name": "overlap_rejected",
+          "passed": true,
+          "simulation": {
+            "result": "PASS",
+            "scenario": 5,
+            "tasks": 16,
+            "dma_completed": 12,
+            "zvt_per_core": 0,
+            "elements": 37,
+            "stall_period": 3,
+            "negative_dma_case": 2,
+            "cpu_cycles": 271700,
+            "checksum": 6771
+          }
+        },
+        {
+          "name": "busy_snapshot",
+          "passed": true,
+          "simulation": {
+            "result": "PASS",
+            "scenario": 5,
+            "tasks": 16,
+            "dma_completed": 12,
+            "zvt_per_core": 0,
+            "elements": 128,
+            "stall_period": 5,
+            "negative_dma_case": 3,
+            "cpu_cycles": 287128,
+            "checksum": 81664
+          }
+        },
+        {
+          "name": "zvt_signed",
+          "passed": true,
+          "simulation": {
+            "result": "PASS",
+            "scenario": 6,
+            "tasks": 16,
+            "dma_completed": 12,
+            "zvt_per_core": 4,
+            "elements": 37,
+            "stall_period": 0,
+            "negative_dma_case": 0,
+            "cpu_cycles": 752973,
+            "checksum": 177
+          }
+        },
+        {
+          "name": "zvt_backpressure",
+          "passed": true,
+          "simulation": {
+            "result": "PASS",
+            "scenario": 6,
+            "tasks": 16,
+            "dma_completed": 12,
+            "zvt_per_core": 4,
+            "elements": 37,
+            "stall_period": 5,
+            "negative_dma_case": 0,
+            "cpu_cycles": 754533,
+            "checksum": 177
+          }
+        }
+      ]
+    },
+    {
+      "name": "Existing RVV multicore regression",
+      "status": "PASS",
+      "finished": "2026-11-13T06:44:33.984514+00:00",
+      "simulator_sha256": "751d097ce3bafcb86a6da1de6a2b8dfdd46ac23c58ece47ca3423cae529957b9",
+      "controller_sha256": "8a2592aa7585d5624afac19240612a1740bcc4749e1fc0b8a420610a6dad8de2",
+      "cases": [
+        {
+          "name": "one_element",
+          "passed": true,
+          "simulation": {
+            "result": "PASS",
+            "control_cpu": "PicoRV32 RV32IM RTL",
+            "coral_cores": 4,
+            "compute_backend": "RVV",
+            "rtl_shared_sram": true,
+            "cpu_runs_runtime": true,
+            "testbench_dispatch": false,
+            "elements": 1,
+            "operators": 1,
+            "launches": 4,
+            "completion_mask": 15,
+            "checksum": 3,
+            "cpu_cycles": 49122,
+            "stall_period": 0,
+            "decode_errors": 0,
+            "shared_read_beats": 12,
+            "shared_write_beats": 61
+          }
+        },
+        {
+          "name": "empty_shards",
+          "passed": true,
+          "simulation": {
+            "result": "PASS",
+            "control_cpu": "PicoRV32 RV32IM RTL",
+            "coral_cores": 4,
+            "compute_backend": "RVV",
+            "rtl_shared_sram": true,
+            "cpu_runs_runtime": true,
+            "testbench_dispatch": false,
+            "elements": 3,
+            "operators": 1,
+            "launches": 4,
+            "completion_mask": 15,
+            "checksum": 39,
+            "cpu_cycles": 49527,
+            "stall_period": 3,
+            "decode_errors": 0,
+            "shared_read_beats": 20,
+            "shared_write_beats": 71
+          }
+        },
+        {
+          "name": "one_per_core",
+          "passed": true,
+          "simulation": {
+            "result": "PASS",
+            "control_cpu": "PicoRV32 RV32IM RTL",
+            "coral_cores": 4,
+            "compute_backend": "RVV",
+            "rtl_shared_sram": true,
+            "cpu_runs_runtime": true,
+            "testbench_dispatch": false,
+            "elements": 4,
+            "operators": 1,
+            "launches": 4,
+            "completion_mask": 15,
+            "checksum": 72,
+            "cpu_cycles": 49716,
+            "stall_period": 0,
+            "decode_errors": 0,
+            "shared_read_beats": 24,
+            "shared_write_beats": 76
+          }
+        },
+        {
+          "name": "unequal_shards",
+          "passed": true,
+          "simulation": {
+            "result": "PASS",
+            "control_cpu": "PicoRV32 RV32IM RTL",
+            "coral_cores": 4,
+            "compute_backend": "RVV",
+            "rtl_shared_sram": true,
+            "cpu_runs_runtime": true,
+            "testbench_dispatch": false,
+            "elements": 37,
+            "operators": 1,
+            "launches": 4,
+            "completion_mask": 15,
+            "checksum": 6771,
+            "cpu_cycles": 56327,
+            "stall_period": 3,
+            "decode_errors": 0,
+            "shared_read_beats": 114,
+            "shared_write_beats": 220
+          }
+        },
+        {
+          "name": "backpressure",
+          "passed": true,
+          "simulation": {
+            "result": "PASS",
+            "control_cpu": "PicoRV32 RV32IM RTL",
+            "coral_cores": 4,
+            "compute_backend": "RVV",
+            "rtl_shared_sram": true,
+            "cpu_runs_runtime": true,
+            "testbench_dispatch": false,
+            "elements": 128,
+            "operators": 1,
+            "launches": 4,
+            "completion_mask": 15,
+            "checksum": 81664,
+            "cpu_cycles": 74916,
+            "stall_period": 5,
+            "decode_errors": 0,
+            "shared_read_beats": 332,
+            "shared_write_beats": 600
+          }
+        },
+        {
+          "name": "two_operators",
+          "passed": true,
+          "simulation": {
+            "result": "PASS",
+            "control_cpu": "PicoRV32 RV32IM RTL",
+            "coral_cores": 4,
+            "compute_backend": "RVV",
+            "rtl_shared_sram": true,
+            "cpu_runs_runtime": true,
+            "testbench_dispatch": false,
+            "elements": 37,
+            "operators": 2,
+            "launches": 8,
+            "completion_mask": 15,
+            "checksum": 11507,
+            "cpu_cycles": 60818,
+            "stall_period": 3,
+            "decode_errors": 0,
+            "shared_read_beats": 187,
+            "shared_write_beats": 288
+          }
+        },
+        {
+          "name": "two_operators_backpressure",
+          "passed": true,
+          "simulation": {
+            "result": "PASS",
+            "control_cpu": "PicoRV32 RV32IM RTL",
+            "coral_cores": 4,
+            "compute_backend": "RVV",
+            "rtl_shared_sram": true,
+            "cpu_runs_runtime": true,
+            "testbench_dispatch": false,
+            "elements": 128,
+            "operators": 2,
+            "launches": 8,
+            "completion_mask": 15,
+            "checksum": 138816,
+            "cpu_cycles": 86345,
+            "stall_period": 5,
+            "decode_errors": 0,
+            "shared_read_beats": 532,
+            "shared_write_beats": 684
+          }
+        },
+        {
+          "name": "decode_error_recovery",
+          "passed": true,
+          "simulation": {
+            "result": "PASS",
+            "control_cpu": "PicoRV32 RV32IM RTL",
+            "coral_cores": 4,
+            "compute_backend": "RVV",
+            "rtl_shared_sram": true,
+            "cpu_runs_runtime": true,
+            "testbench_dispatch": false,
+            "elements": 37,
+            "operators": 1,
+            "launches": 4,
+            "completion_mask": 15,
+            "checksum": 6771,
+            "cpu_cycles": 56360,
+            "stall_period": 3,
+            "decode_errors": 1,
+            "shared_read_beats": 114,
+            "shared_write_beats": 220
+          }
+        },
+        {
+          "name": "bad_configuration",
+          "passed": true,
+          "simulation": null
+        },
+        {
+          "name": "coral_fault",
+          "passed": true,
+          "simulation": null
+        },
+        {
+          "name": "runtime_wait_timeout",
+          "passed": true,
+          "simulation": null
+        },
+        {
+          "name": "cycle_deadline",
+          "passed": true,
+          "simulation": null
+        },
+        {
+          "name": "memory_not_ready",
+          "passed": true,
+          "simulation": null
+        },
+        {
+          "name": "complex_serial_empty_shard",
+          "passed": true,
+          "simulation": {
+            "result": "PASS",
+            "control_cpu": "PicoRV32 RV32IM RTL",
+            "coral_cores": 4,
+            "compute_backend": "RVV",
+            "vlen_bits": 128,
+            "rvv_mac_dispatched": [
+              72,
+              0,
+              144,
+              0
+            ],
+            "rtl_shared_sram": true,
+            "cpu_runs_runtime": true,
+            "testbench_dispatch": false,
+            "scenario": "serial",
+            "rows": 1,
+            "operators": 2,
+            "launches": 4,
+            "completion_mask": 15,
+            "checksum": 687,
+            "gemm_checked": 12,
+            "conv_checked": 32,
+            "overlap_observed": false,
+            "gemm_rows_during_overlap": 0,
+            "conv_rows_during_overlap": 0,
+            "trace_events": 14,
+            "stall_period": 0
+          }
+        },
+        {
+          "name": "complex_parallel_empty_shard",
+          "passed": true,
+          "simulation": {
+            "result": "PASS",
+            "control_cpu": "PicoRV32 RV32IM RTL",
+            "coral_cores": 4,
+            "compute_backend": "RVV",
+            "vlen_bits": 128,
+            "rvv_mac_dispatched": [
+              72,
+              0,
+              144,
+              0
+            ],
+            "rtl_shared_sram": true,
+            "cpu_runs_runtime": true,
+            "testbench_dispatch": false,
+            "scenario": "parallel",
+            "rows": 1,
+            "operators": 2,
+            "launches": 4,
+            "completion_mask": 15,
+            "checksum": 687,
+            "gemm_checked": 12,
+            "conv_checked": 32,
+            "overlap_observed": true,
+            "gemm_rows_during_overlap": 1,
+            "conv_rows_during_overlap": 0,
+            "trace_events": 14,
+            "stall_period": 0
+          }
+        },
+        {
+          "name": "complex_serial_unequal_rows",
+          "passed": true,
+          "simulation": {
+            "result": "PASS",
+            "control_cpu": "PicoRV32 RV32IM RTL",
+            "coral_cores": 4,
+            "compute_backend": "RVV",
+            "vlen_bits": 128,
+            "rvv_mac_dispatched": [
+              144,
+              72,
+              288,
+              144
+            ],
+            "rtl_shared_sram": true,
+            "cpu_runs_runtime": true,
+            "testbench_dispatch": false,
+            "scenario": "serial",
+            "rows": 3,
+            "operators": 2,
+            "launches": 4,
+            "completion_mask": 15,
+            "checksum": 1944,
+            "gemm_checked": 36,
+            "conv_checked": 96,
+            "overlap_observed": false,
+            "gemm_rows_during_overlap": 0,
+            "conv_rows_during_overlap": 0,
+            "trace_events": 18,
+            "stall_period": 3
+          }
+        },
+        {
+          "name": "complex_parallel_unequal_rows",
+          "passed": true,
+          "simulation": {
+            "result": "PASS",
+            "control_cpu": "PicoRV32 RV32IM RTL",
+            "coral_cores": 4,
+            "compute_backend": "RVV",
+            "vlen_bits": 128,
+            "rvv_mac_dispatched": [
+              144,
+              72,
+              288,
+              144
+            ],
+            "rtl_shared_sram": true,
+            "cpu_runs_runtime": true,
+            "testbench_dispatch": false,
+            "scenario": "parallel",
+            "rows": 3,
+            "operators": 2,
+            "launches": 4,
+            "completion_mask": 15,
+            "checksum": 1944,
+            "gemm_checked": 36,
+            "conv_checked": 96,
+            "overlap_observed": true,
+            "gemm_rows_during_overlap": 3,
+            "conv_rows_during_overlap": 2,
+            "trace_events": 18,
+            "stall_period": 3
+          }
+        },
+        {
+          "name": "complex_serial_full_backpressure",
+          "passed": true,
+          "simulation": {
+            "result": "PASS",
+            "control_cpu": "PicoRV32 RV32IM RTL",
+            "coral_cores": 4,
+            "compute_backend": "RVV",
+            "vlen_bits": 128,
+            "rvv_mac_dispatched": [
+              288,
+              288,
+              576,
+              576
+            ],
+            "rtl_shared_sram": true,
+            "cpu_runs_runtime": true,
+            "testbench_dispatch": false,
+            "scenario": "serial",
+            "rows": 8,
+            "operators": 2,
+            "launches": 4,
+            "completion_mask": 15,
+            "checksum": 5115,
+            "gemm_checked": 96,
+            "conv_checked": 256,
+            "overlap_observed": false,
+            "gemm_rows_during_overlap": 0,
+            "conv_rows_during_overlap": 0,
+            "trace_events": 28,
+            "stall_period": 5
+          }
+        },
+        {
+          "name": "complex_parallel_full_backpressure",
+          "passed": true,
+          "simulation": {
+            "result": "PASS",
+            "control_cpu": "PicoRV32 RV32IM RTL",
+            "coral_cores": 4,
+            "compute_backend": "RVV",
+            "vlen_bits": 128,
+            "rvv_mac_dispatched": [
+              288,
+              288,
+              576,
+              576
+            ],
+            "rtl_shared_sram": true,
+            "cpu_runs_runtime": true,
+            "testbench_dispatch": false,
+            "scenario": "parallel",
+            "rows": 8,
+            "operators": 2,
+            "launches": 4,
+            "completion_mask": 15,
+            "checksum": 5115,
+            "gemm_checked": 96,
+            "conv_checked": 256,
+            "overlap_observed": true,
+            "gemm_rows_during_overlap": 8,
+            "conv_rows_during_overlap": 6,
+            "trace_events": 28,
+            "stall_period": 5
+          }
+        },
+        {
+          "name": "gemm_four_core_empty_shards",
+          "passed": true,
+          "simulation": {
+            "result": "PASS",
+            "control_cpu": "PicoRV32 RV32IM RTL",
+            "coral_cores": 4,
+            "compute_backend": "RVV",
+            "vlen_bits": 128,
+            "rvv_mac_dispatched": [
+              72,
+              0,
+              0,
+              0
+            ],
+            "rtl_shared_sram": true,
+            "cpu_runs_runtime": true,
+            "testbench_dispatch": false,
+            "scenario": "gemm",
+            "rows": 1,
+            "operators": 1,
+            "launches": 4,
+            "completion_mask": 15,
+            "checksum": 393,
+            "gemm_checked": 12,
+            "conv_checked": 0,
+            "overlap_observed": false,
+            "gemm_rows_during_overlap": 0,
+            "conv_rows_during_overlap": 0,
+            "trace_events": 13,
+            "stall_period": 0
+          }
+        },
+        {
+          "name": "gemm_four_core_unequal_rows",
+          "passed": true,
+          "simulation": {
+            "result": "PASS",
+            "control_cpu": "PicoRV32 RV32IM RTL",
+            "coral_cores": 4,
+            "compute_backend": "RVV",
+            "vlen_bits": 128,
+            "rvv_mac_dispatched": [
+              144,
+              144,
+              144,
+              72
+            ],
+            "rtl_shared_sram": true,
+            "cpu_runs_runtime": true,
+            "testbench_dispatch": false,
+            "scenario": "gemm",
+            "rows": 7,
+            "operators": 1,
+            "launches": 4,
+            "completion_mask": 15,
+            "checksum": 2204,
+            "gemm_checked": 84,
+            "conv_checked": 0,
+            "overlap_observed": false,
+            "gemm_rows_during_overlap": 0,
+            "conv_rows_during_overlap": 0,
+            "trace_events": 19,
+            "stall_period": 3
+          }
+        },
+        {
+          "name": "conv_four_core_empty_shards",
+          "passed": true,
+          "simulation": {
+            "result": "PASS",
+            "control_cpu": "PicoRV32 RV32IM RTL",
+            "coral_cores": 4,
+            "compute_backend": "RVV",
+            "vlen_bits": 128,
+            "rvv_mac_dispatched": [
+              144,
+              0,
+              0,
+              0
+            ],
+            "rtl_shared_sram": true,
+            "cpu_runs_runtime": true,
+            "testbench_dispatch": false,
+            "scenario": "conv",
+            "rows": 1,
+            "operators": 1,
+            "launches": 4,
+            "completion_mask": 15,
+            "checksum": 294,
+            "gemm_checked": 0,
+            "conv_checked": 32,
+            "overlap_observed": false,
+            "gemm_rows_during_overlap": 0,
+            "conv_rows_during_overlap": 0,
+            "trace_events": 13,
+            "stall_period": 0
+          }
+        },
+        {
+          "name": "conv_four_core_unequal_rows",
+          "passed": true,
+          "simulation": {
+            "result": "PASS",
+            "control_cpu": "PicoRV32 RV32IM RTL",
+            "coral_cores": 4,
+            "compute_backend": "RVV",
+            "vlen_bits": 128,
+            "rvv_mac_dispatched": [
+              288,
+              288,
+              288,
+              144
+            ],
+            "rtl_shared_sram": true,
+            "cpu_runs_runtime": true,
+            "testbench_dispatch": false,
+            "scenario": "conv",
+            "rows": 7,
+            "operators": 1,
+            "launches": 4,
+            "completion_mask": 15,
+            "checksum": 2232,
+            "gemm_checked": 0,
+            "conv_checked": 224,
+            "overlap_observed": false,
+            "gemm_rows_during_overlap": 0,
+            "conv_rows_during_overlap": 0,
+            "trace_events": 19,
+            "stall_period": 3
+          }
+        }
+      ]
+    }
+  ],
+  "queue_sanitizers": {
+    "status": "PASS",
+    "output": "PASS: dependency order, wraparound, generation, resource exclusion, overlap, failure propagation, deadlock, capacity"
+  },
+  "zvt_instruction_evidence": {
+    "msetmtype": true,
+    "msettn": true,
+    "vtzero": true,
+    "vtmms.tvv": true,
+    "vtmv.v.t": true,
+    "vtdiscard": true,
+    "vle8.v": true,
+    "vse32.v": true
+  },
+  "generated_rtl_sha256": "82851f6a8a2c2b8ac42acc4c728edddbbbdc6bd69efd6b8326cf209a3511e171",
+  "notes": [
+    "The legacy suite preceded the final busy-injection and diagnostic-only adjustments; binary hashes are kept separately.",
+    "Guest SB/SH, unaligned memcpy and partial memset checks run in every new pipeline case.",
+    "Numerical Zvt validation covers signed INT8 16x16x4 to INT32, not BF16/FP32 or physical performance."
+  ]
+}

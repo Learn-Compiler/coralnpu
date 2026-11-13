@@ -62,6 +62,7 @@ def build(argv):
     parser.add_argument("--firmware-timeout", type=int, default=30)
     parser.add_argument("--clang")
     parser.add_argument("--lld")
+    parser.add_argument("--zvt",action="store_true")
     args = parser.parse_args(argv)
     if min(args.jobs, args.build_timeout, args.firmware_timeout) < 1:
         parser.error("jobs and timeouts must be positive")
@@ -69,10 +70,11 @@ def build(argv):
     for option in ("clang", "lld"):
         if getattr(args, option):
             code_args.extend(["--" + option, getattr(args, option)])
+    if args.zvt:code_args.append("--zvt")
     # Each child announces and enforces its own phase deadlines.
     for script, options in (
         ("build_firmware.py", code_args),
-        ("build_sim.py", ["--jobs", str(args.jobs), "--timeout", str(args.build_timeout)]),
+        ("build_sim.py", ["--jobs", str(args.jobs), "--timeout", str(args.build_timeout)]+(["--vme"] if args.zvt else [])),
     ):
         result = subprocess.run([sys.executable, str(HERE / "die" / script), *options])
         if result.returncode:
@@ -86,7 +88,7 @@ def main():
         description=__doc__,
         epilog="Use COMMAND --help for options. run/demo/test reuse built artifacts; build first.",
     )
-    parser.add_argument("command", choices=("doctor", "build", "build-sim", "build-code", "run", "demo", "test", "op", "ui"))
+    parser.add_argument("command", choices=("doctor", "build", "build-sim", "build-code", "run", "demo", "test", "pipeline", "op", "ui"))
     # Parse only the command so --help belongs to the selected subcommand.
     args = parser.parse_args(sys.argv[1:2])
     remaining = sys.argv[2:]
@@ -95,7 +97,7 @@ def main():
     if args.command == "build":
         return build(remaining)
     scripts = {"build-sim": "build_sim.py", "build-code": "build_firmware.py",
-               "run": "run.py", "demo": "demo_complex.py", "test": "check.py", "op": "operators.py", "ui": "ui.py"}
+               "pipeline": "pipeline.py", "run": "run.py", "demo": "demo_complex.py", "test": "check.py", "op": "operators.py", "ui": "ui.py"}
     if args.command in ("run", "demo"):
         remaining = ["--skip-build", "--skip-firmware", *remaining]
     os.execv(sys.executable, [sys.executable, str(HERE / "die" / scripts[args.command]), *remaining])
